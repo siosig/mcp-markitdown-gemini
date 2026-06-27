@@ -1,0 +1,37 @@
+# Rust build artifacts
+/target/
+*.rs.bk
+*.rlib
+*.prof*
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local-only / non-published (internal docs, tooling, deploy)
+/tmp/
+/refs/
+/configs/
+/specs/
+/report/
+/scripts/
+/ansible/
+/Makefile
+/CLAUDE.md
+/.claude/
+/.claude.json
+/.specify/
+
+# secretlint local-only denylist (company/personal terms — never committed)
+.secretlintrc.local.json
