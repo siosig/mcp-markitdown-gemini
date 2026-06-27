@@ -1,4 +1,4 @@
-//! フォーマット判定。優先順位: 拡張子 → MIME → マジックバイト → 内容スニフ。
+//! Format detection. Priority order: extension → MIME → magic bytes → content sniffing.
 //! (research.md §4)
 
 use std::io::Cursor;
@@ -6,7 +6,7 @@ use std::io::Cursor;
 use crate::source::SourceContent;
 use crate::util::looks_like_text;
 
-/// 判定されたフォーマット。`Unknown` は未対応 (`UnsupportedFormat` エラーになる)。
+/// Detected format. `Unknown` means unsupported (results in an `UnsupportedFormat` error).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DetectedFormat {
     PlainText,
@@ -24,7 +24,7 @@ pub enum DetectedFormat {
 }
 
 impl DetectedFormat {
-    /// エラーメッセージ用の表示名。
+    /// Display name for error messages.
     pub fn label(self) -> &'static str {
         match self {
             DetectedFormat::PlainText => "text",
@@ -43,7 +43,7 @@ impl DetectedFormat {
     }
 }
 
-/// ZIP ベースのコンテナを内部エントリ名で分類する (OOXML / EPub / 素の ZIP)。
+/// Classifies a ZIP-based container by its internal entry names (OOXML / EPub / plain ZIP).
 fn classify_zip(bytes: &[u8]) -> DetectedFormat {
     let Ok(archive) = zip::ZipArchive::new(Cursor::new(bytes)) else {
         return DetectedFormat::Zip;
@@ -102,9 +102,9 @@ fn by_mime(mime: &str) -> Option<DetectedFormat> {
     })
 }
 
-/// SourceContent からフォーマットを判定する。
+/// Detects the format from a SourceContent.
 pub fn detect(src: &SourceContent) -> DetectedFormat {
-    // 1. 拡張子。zip 拡張子は中身を覗いて分類する。
+    // 1. Extension. For the zip extension, peek inside to classify.
     if let Some(ext) = src.extension() {
         if ext == "zip" {
             return classify_zip(&src.bytes);
@@ -114,7 +114,7 @@ pub fn detect(src: &SourceContent) -> DetectedFormat {
         }
     }
 
-    // 2. MIME。
+    // 2. MIME.
     if let Some(mime) = &src.mime {
         if mime
             .split(';')
@@ -130,7 +130,7 @@ pub fn detect(src: &SourceContent) -> DetectedFormat {
         }
     }
 
-    // 3. マジックバイト。
+    // 3. Magic bytes.
     if let Some(kind) = infer::get(&src.bytes) {
         match kind.mime_type() {
             "application/pdf" => return DetectedFormat::Pdf,
@@ -140,7 +140,7 @@ pub fn detect(src: &SourceContent) -> DetectedFormat {
         }
     }
 
-    // 4. 内容スニフ: テキストらしければ PlainText。
+    // 4. Content sniffing: treat as PlainText if it looks like text.
     if looks_like_text(&src.bytes) {
         return DetectedFormat::PlainText;
     }

@@ -1,5 +1,5 @@
-//! コンバーターのレジストリと dispatch (data-model.md)。
-//! ZIP コンバーターは `Registry` を再帰利用して内包ファイルを変換する (FR-008)。
+//! Converter registry and dispatch (data-model.md).
+//! The ZIP converter recursively reuses `Registry` to convert files contained within the archive (FR-008).
 
 use std::collections::HashMap;
 
@@ -8,17 +8,17 @@ use crate::detect::{detect, DetectedFormat};
 use crate::error::MarkItDownError;
 use crate::source::SourceContent;
 
-/// 変換結果。
+/// Conversion result.
 #[derive(Debug, Clone, Default)]
 pub struct ConversionResult {
-    /// 変換後 Markdown 本文。
+    /// Converted Markdown body.
     pub markdown: String,
-    /// 文書タイトル (取得できた場合)。
+    /// Document title (if one could be extracted).
     pub title: Option<String>,
 }
 
 impl ConversionResult {
-    /// タイトル無しの結果を作る。
+    /// Creates a result with no title.
     pub fn text(markdown: impl Into<String>) -> Self {
         Self {
             markdown: markdown.into(),
@@ -27,9 +27,9 @@ impl ConversionResult {
     }
 }
 
-/// フォーマット別コンバーターの共通インターフェース。
+/// Common interface for per-format converters.
 pub trait Converter: Send + Sync {
-    /// `src` を Markdown へ変換する。`ctx` は内包コンテナの再帰変換に使う。
+    /// Converts `src` to Markdown. `ctx` is used for recursive conversion of nested containers.
     fn convert(
         &self,
         src: &SourceContent,
@@ -37,13 +37,13 @@ pub trait Converter: Send + Sync {
     ) -> Result<ConversionResult, MarkItDownError>;
 }
 
-/// フォーマット → コンバーターのレジストリ。
+/// Registry mapping formats to their respective converters.
 pub struct Registry {
     converters: HashMap<DetectedFormat, Box<dyn Converter>>,
 }
 
 impl Registry {
-    /// 全フォーマットのコンバーターを登録した既定レジストリを構築する (FR-006)。
+    /// Builds the default registry with converters registered for all supported formats (FR-006).
     pub fn with_defaults() -> Self {
         let mut converters: HashMap<DetectedFormat, Box<dyn Converter>> = HashMap::new();
         converters.insert(
@@ -81,7 +81,7 @@ impl Registry {
         Self { converters }
     }
 
-    /// `src` を判定し、対応コンバーターで変換する。未対応は `UnsupportedFormat`。
+    /// Detects the format of `src` and converts it using the matching converter. Returns `UnsupportedFormat` if no converter is registered.
     pub fn convert(&self, src: &SourceContent) -> Result<ConversionResult, MarkItDownError> {
         let fmt = detect(src);
         match self.converters.get(&fmt) {

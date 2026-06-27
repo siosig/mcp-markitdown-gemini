@@ -1,4 +1,4 @@
-//! `http:` / `https:` スキーム取得 (US2)。`reqwest` blocking + rustls。
+//! `http:` / `https:` scheme acquisition (US2). Uses `reqwest` blocking client + rustls.
 
 use url::Url;
 
@@ -6,7 +6,7 @@ use super::{filename_from_url, Acquirer};
 use crate::error::MarkItDownError;
 use crate::source::{Origin, SourceContent};
 
-/// リモートコンテンツを取得する Acquirer。
+/// Acquirer that fetches remote content.
 pub struct HttpAcquirer {
     user_agent: String,
 }
@@ -19,7 +19,7 @@ impl Default for HttpAcquirer {
     }
 }
 
-/// content-type を MIME 本体と charset に分解する。
+/// Splits a content-type value into its MIME type and charset.
 fn split_content_type(value: &str) -> (Option<String>, Option<String>) {
     let mut parts = value.split(';');
     let mime = parts

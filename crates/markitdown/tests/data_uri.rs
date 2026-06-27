@@ -1,5 +1,5 @@
-#![allow(clippy::expect_used, clippy::unwrap_used)] // テストコードでは許容
-//! data URI 取得の統合テスト (US3 / quickstart S3)。
+#![allow(clippy::expect_used, clippy::unwrap_used)] // Allowed in test code
+//! Integration tests for data URI fetching (US3 / quickstart S3).
 
 #[test]
 fn data_uri_plain_html() {
@@ -13,7 +13,7 @@ fn data_uri_plain_html() {
 
 #[test]
 fn data_uri_base64_text() {
-    // "Hello data" を base64 化したもの。
+    // "Hello data" encoded as base64.
     let uri = "data:text/plain;base64,SGVsbG8gZGF0YQ==";
     let md = markitdown::convert(uri).expect("data convert").markdown;
     assert!(md.contains("Hello data"), "got: {md}");

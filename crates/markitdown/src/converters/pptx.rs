@@ -1,4 +1,4 @@
-//! PPTX 変換。`ppt/slides/slideN.xml` を番号順に解析し、テキストと表を Markdown 化する。
+//! PPTX conversion. Parses `ppt/slides/slideN.xml` files in numeric order and converts text and tables to Markdown.
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -8,10 +8,10 @@ use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::{decode_xml_text, list_zip_entries, local_name, markdown_table, read_zip_entry};
 
-/// PPTX をスライド単位で Markdown へ変換する。
+/// Converts a PPTX file to Markdown, one slide at a time.
 pub struct PptxConverter;
 
-/// `ppt/slides/slide12.xml` から数値 12 を取り出す (ソート用)。
+/// Extracts the numeric index 12 from `ppt/slides/slide12.xml` (used for sorting).
 fn slide_number(name: &str) -> u32 {
     name.trim_start_matches("ppt/slides/slide")
         .trim_end_matches(".xml")
@@ -48,7 +48,7 @@ impl Converter for PptxConverter {
     }
 }
 
-/// 1 スライドの XML からテキスト段落と表を抽出する。
+/// Extracts text paragraphs and tables from a single slide's XML.
 fn parse_slide(xml: &[u8]) -> Result<String, MarkItDownError> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(false);
@@ -89,7 +89,7 @@ fn parse_slide(xml: &[u8]) -> Result<String, MarkItDownError> {
                     out.push_str(&markdown_table(&table_rows));
                     out.push('\n');
                 }
-                // a:p (段落) 終了でテキスト行を確定。表内のテキストはセル側で処理。
+                // Finalize the text line at the end of a:p (paragraph). Text inside tables is handled on the cell side.
                 b"p" => {
                     if !in_table {
                         let line = para.trim();

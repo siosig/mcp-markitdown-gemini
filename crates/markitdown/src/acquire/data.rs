@@ -1,4 +1,4 @@
-//! `data:` スキーム取得 (US3)。`data-url` で MIME / 本体をデコードする。
+//! `data:` scheme acquisition (US3). Decodes MIME type and body using the `data-url` crate.
 
 use url::Url;
 
@@ -6,7 +6,7 @@ use super::Acquirer;
 use crate::error::MarkItDownError;
 use crate::source::{Origin, SourceContent};
 
-/// data URI をデコードする Acquirer。
+/// Acquirer that decodes data URIs.
 pub struct DataAcquirer;
 
 impl Acquirer for DataAcquirer {

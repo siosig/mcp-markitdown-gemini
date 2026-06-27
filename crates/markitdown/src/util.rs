@@ -1,8 +1,8 @@
-//! 変換器が共有するユーティリティ (テキストデコード・Markdown 表・XML 名処理・ZIP 読込)。
+//! Shared utilities for converters (text decoding, Markdown table, XML name handling, ZIP reading).
 
 use std::io::{Cursor, Read};
 
-/// ZIP バイト列から指定名のエントリを読み出す。
+/// Reads an entry with the specified name from a ZIP byte slice.
 pub fn read_zip_entry(zip_bytes: &[u8], name: &str) -> Option<Vec<u8>> {
     let mut archive = zip::ZipArchive::new(Cursor::new(zip_bytes)).ok()?;
     let mut file = archive.by_name(name).ok()?;
@@ -11,7 +11,7 @@ pub fn read_zip_entry(zip_bytes: &[u8], name: &str) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-/// ZIP バイト列から、指定プレフィックスで始まるエントリ名を列挙する。
+/// Lists entry names from a ZIP byte slice that start with the specified prefix.
 pub fn list_zip_entries(zip_bytes: &[u8], prefix: &str) -> Vec<String> {
     let Ok(archive) = zip::ZipArchive::new(Cursor::new(zip_bytes)) else {
         return Vec::new();
@@ -23,9 +23,10 @@ pub fn list_zip_entries(zip_bytes: &[u8], prefix: &str) -> Vec<String> {
         .collect()
 }
 
-/// バイト列をテキストへデコードする。
+/// Decodes a byte slice into text.
 ///
-/// charset ヒントがあればそれを優先し、なければ `chardetng` で推定する (FR-015)。
+/// If a charset hint is provided it takes priority; otherwise the encoding is guessed
+/// with `chardetng` (FR-015).
 pub fn decode_text(bytes: &[u8], charset: Option<&str>) -> String {
     if let Some(label) = charset {
         if let Some(enc) = encoding_rs::Encoding::for_label(label.as_bytes()) {
@@ -40,7 +41,7 @@ pub fn decode_text(bytes: &[u8], charset: Option<&str>) -> String {
     cow.into_owned()
 }
 
-/// quick-xml の Text イベントをデコードし、XML エンティティを展開した文字列を返す。
+/// Decodes a quick-xml Text event and returns a string with XML entities unescaped.
 pub fn decode_xml_text(t: &quick_xml::events::BytesText) -> String {
     match t.decode() {
         Ok(cow) => quick_xml::escape::unescape(&cow)
@@ -50,7 +51,7 @@ pub fn decode_xml_text(t: &quick_xml::events::BytesText) -> String {
     }
 }
 
-/// 先頭サンプルがテキストらしいか (NUL 無し・印字可能比率が高い) を判定する。
+/// Determines whether the leading sample looks like text (no NUL bytes, high ratio of printable characters).
 pub fn looks_like_text(bytes: &[u8]) -> bool {
     if bytes.is_empty() {
         return true;
@@ -62,7 +63,7 @@ pub fn looks_like_text(bytes: &[u8]) -> bool {
     if std::str::from_utf8(sample).is_ok() {
         return true;
     }
-    // UTF-8 でなくても制御文字が少なければテキスト扱い (レガシーエンコーディング)。
+    // Even if not valid UTF-8, treat as text if control characters are sparse (legacy encodings).
     let printable = sample
         .iter()
         .filter(|&&b| b >= 0x20 || b == b'\n' || b == b'\r' || b == b'\t')
@@ -70,7 +71,7 @@ pub fn looks_like_text(bytes: &[u8]) -> bool {
     (printable as f64) / (sample.len() as f64) > 0.85
 }
 
-/// XML の修飾名 (`w:p` など) からローカル名 (`p`) を取り出す。
+/// Extracts the local name (`p`) from an XML qualified name (`w:p`, etc.).
 pub fn local_name(qname: &[u8]) -> &[u8] {
     match qname.iter().position(|&b| b == b':') {
         Some(i) => &qname[i + 1..],
@@ -78,7 +79,7 @@ pub fn local_name(qname: &[u8]) -> &[u8] {
     }
 }
 
-/// セル内の改行・パイプを Markdown 表で安全な表現へエスケープする。
+/// Escapes newlines and pipe characters in a cell to safe representations for Markdown tables.
 fn escape_cell(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('|', "\\|")
@@ -87,9 +88,9 @@ fn escape_cell(s: &str) -> String {
         .to_string()
 }
 
-/// 行列データを Markdown のテーブルへ整形する。先頭行をヘッダとして扱う。
+/// Formats tabular data as a Markdown table. The first row is treated as the header.
 ///
-/// 行が空の場合は空文字列を返す。列数は最大列に合わせてパディングする。
+/// Returns an empty string if rows is empty. Column count is padded to the maximum row width.
 pub fn markdown_table(rows: &[Vec<String>]) -> String {
     if rows.is_empty() {
         return String::new();

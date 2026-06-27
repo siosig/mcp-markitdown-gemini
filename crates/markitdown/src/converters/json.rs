@@ -1,11 +1,11 @@
-//! JSON 変換 → 整形した ```json コードフェンス。
+//! JSON conversion to a pretty-printed ```json code fence.
 
 use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::decode_text;
 
-/// JSON を整形して Markdown コードフェンスに包む。
+/// Pretty-prints JSON and wraps it in a Markdown code fence.
 pub struct JsonConverter;
 
 impl Converter for JsonConverter {

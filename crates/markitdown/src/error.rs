@@ -1,40 +1,40 @@
-//! 型付きエラー (`thiserror`)。ライブラリ crate のため `anyhow` は使用しない。
+//! Typed errors (`thiserror`). `anyhow` is not used because this is a library crate.
 
 use thiserror::Error;
 
-/// 変換パイプライン全体で使われるエラー型。
+/// Error type used throughout the conversion pipeline.
 ///
-/// いずれのバリアントもプロセスを停止させず、原因が判別できるメッセージを持つ
-/// (spec FR-009/FR-010, SC-004)。
+/// Every variant carries a human-readable message that identifies the cause
+/// without terminating the process (spec FR-009/FR-010, SC-004).
 #[derive(Error, Debug)]
 pub enum MarkItDownError {
-    /// 対応外の URI スキーム (http/https/file/data 以外)。
+    /// Unsupported URI scheme (anything other than http/https/file/data).
     #[error("unsupported URI scheme: '{0}' (supported: http, https, file, data)")]
     UnsupportedScheme(String),
 
-    /// URI のパースに失敗。
+    /// Failed to parse the URI.
     #[error("invalid URI: {0}")]
     InvalidUri(String),
 
-    /// コンテンツ取得失敗 (権限/不在/ネットワーク/404/timeout など)。
+    /// Failed to acquire content (permission denied, not found, network error, 404, timeout, etc.).
     #[error("failed to acquire content from '{uri}': {message}")]
     Acquire { uri: String, message: String },
 
-    /// 判定できない・未対応のフォーマット。
+    /// Unrecognized or unsupported format.
     #[error("unsupported format: {0}")]
     UnsupportedFormat(String),
 
-    /// 破損・パース失敗。
+    /// Corrupted data or parse failure.
     #[error("failed to decode {format}: {message}")]
     Decode { format: String, message: String },
 
-    /// I/O エラー。
+    /// I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
 impl MarkItDownError {
-    /// 取得エラーを簡潔に生成するヘルパ。
+    /// Helper to concisely construct an acquire error.
     pub fn acquire(uri: impl Into<String>, message: impl Into<String>) -> Self {
         Self::Acquire {
             uri: uri.into(),
@@ -42,7 +42,7 @@ impl MarkItDownError {
         }
     }
 
-    /// デコードエラーを簡潔に生成するヘルパ。
+    /// Helper to concisely construct a decode error.
     pub fn decode(format: impl Into<String>, message: impl Into<String>) -> Self {
         Self::Decode {
             format: format.into(),

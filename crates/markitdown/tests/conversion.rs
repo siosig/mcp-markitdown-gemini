@@ -1,5 +1,5 @@
-#![allow(clippy::expect_used, clippy::unwrap_used)] // テストコードでは許容
-//! フォーマット別変換の統合テスト (US1 / quickstart S1, S5, S6)。
+#![allow(clippy::expect_used, clippy::unwrap_used)] // Allowed in test code
+//! Integration tests for format-specific conversion (US1 / quickstart S1, S5, S6).
 
 use std::path::PathBuf;
 
@@ -22,7 +22,7 @@ fn text_plain() {
 
 #[test]
 fn text_shift_jis() {
-    // FR-015: 非 UTF-8 エンコーディングを文字化けなく変換。
+    // FR-015: Convert non-UTF-8 encodings without mojibake.
     let md = convert("sample_sjis.txt").markdown;
     assert!(md.contains("日本語のテキスト"), "got: {md}");
 }
@@ -124,7 +124,7 @@ fn epub_chapters_and_title() {
 
 #[test]
 fn zip_recursive_concat() {
-    // FR-008: 内包ファイルを見出し付きで連結。
+    // FR-008: Concatenate contained files with headings.
     let md = convert("sample.zip").markdown;
     assert!(md.contains("### note.txt"), "got: {md}");
     assert!(md.contains("Inside the zip."), "got: {md}");
@@ -132,7 +132,7 @@ fn zip_recursive_concat() {
     assert!(md.contains("| k | v |"), "got: {md}");
 }
 
-// --- エラーパス (SC-004 / FR-009) ---
+// --- Error paths (SC-004 / FR-009) ---
 
 #[test]
 fn error_missing_file() {
@@ -154,7 +154,7 @@ fn error_unsupported_scheme() {
 
 #[test]
 fn error_unsupported_format() {
-    // バイナリ (NUL 含む) + 未知拡張子 → Unknown → UnsupportedFormat。
+    // Binary (containing NUL) + unknown extension → Unknown → UnsupportedFormat.
     let err = markitdown::convert_bytes(
         vec![0u8, 1, 2, 3, 255, 254],
         Some("blob.xyz".to_string()),

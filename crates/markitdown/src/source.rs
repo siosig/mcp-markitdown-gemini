@@ -1,36 +1,36 @@
-//! 取得済みコンテンツとそのヒント (data-model.md: SourceContent / Origin)。
+//! Acquired content and its hints (data-model.md: SourceContent / Origin).
 
 use std::path::PathBuf;
 use url::Url;
 
-/// 取得元の種別。
+/// Source origin type.
 #[derive(Debug, Clone)]
 pub enum Origin {
-    /// ローカルファイル (`file:`)。
+    /// Local file (`file:`).
     File(PathBuf),
-    /// リモート (`http:` / `https:`)。
+    /// Remote resource (`http:` / `https:`).
     Remote(Url),
-    /// インライン埋め込み (`data:`)。
+    /// Inline-embedded data (`data:`).
     Inline,
 }
 
-/// acquire 層が URI から取得した生データと、フォーマット判定のためのヒント。
+/// Raw data fetched from a URI by the acquire layer, along with hints for format detection.
 #[derive(Debug, Clone)]
 pub struct SourceContent {
-    /// 取得した生バイト列。
+    /// Raw bytes fetched from the source.
     pub bytes: Vec<u8>,
-    /// content-type / data URI 由来の MIME タイプ (あれば)。
+    /// MIME type derived from the Content-Type header or data URI (if available).
     pub mime: Option<String>,
-    /// ファイル名 (拡張子判定用、あれば)。
+    /// Filename used for extension-based format detection (if available).
     pub filename: Option<String>,
-    /// charset ヒント (あれば)。
+    /// Charset hint (if available).
     pub charset: Option<String>,
-    /// 取得元種別。
+    /// Source origin.
     pub origin: Origin,
 }
 
 impl SourceContent {
-    /// `filename` から小文字の拡張子を取り出す。
+    /// Extracts the lowercased file extension from `filename`.
     pub fn extension(&self) -> Option<String> {
         let name = self.filename.as_ref()?;
         let ext = std::path::Path::new(name).extension()?;

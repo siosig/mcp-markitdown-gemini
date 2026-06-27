@@ -1,5 +1,5 @@
-//! ZIP 変換。内包の各対応ファイルを Registry で再帰変換し、見出し付きで連結する (FR-008)。
-//! ネストした ZIP も再帰的に処理する。
+//! ZIP conversion. Recursively converts each supported contained file via the Registry and concatenates the results with headings (FR-008).
+//! Nested ZIPs are also processed recursively.
 
 use std::io::{Cursor, Read};
 
@@ -7,7 +7,7 @@ use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::{Origin, SourceContent};
 
-/// ZIP を展開し、各エントリを変換して連結する。
+/// Extracts a ZIP archive and converts each entry, concatenating the results.
 pub struct ZipConverter;
 
 impl Converter for ZipConverter {

@@ -1,12 +1,12 @@
-//! トランスポート選択。v1 は stdio のみ。HTTP/SSE は後続 (FR-011/012/013)。
-//! 変換ロジックと疎結合化する分離点。
+//! Transport selection. v1 supports stdio only. HTTP/SSE is planned for a future release (FR-011/012/013).
+//! Separation point for loose coupling from the conversion logic.
 
 use rmcp::transport::stdio;
 use rmcp::ServiceExt;
 
 use crate::server::MarkItDownServer;
 
-/// stdio トランスポートでサーバーを起動し、終了まで待機する。
+/// Starts the server over stdio transport and waits until it exits.
 pub async fn serve_stdio() -> Result<(), Box<dyn std::error::Error>> {
     let service = MarkItDownServer::new().serve(stdio()).await?;
     service.waiting().await?;

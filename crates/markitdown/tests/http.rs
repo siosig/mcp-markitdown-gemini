@@ -1,11 +1,11 @@
-#![allow(clippy::expect_used, clippy::unwrap_used)] // テストコードでは許容
-//! http/https 取得の統合テスト (US2 / quickstart S2)。ローカルのモック HTTP サーバを使う。
+#![allow(clippy::expect_used, clippy::unwrap_used)] // Allowed in test code
+//! Integration tests for http/https fetching (US2 / quickstart S2). Uses a local mock HTTP server.
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
-/// 1 リクエストだけ受けて固定レスポンスを返すモックサーバを起動し、ポートを返す。
+/// Starts a mock server that accepts one request, returns a fixed response, and returns the port.
 fn spawn_mock(body: &'static str, content_type: &'static str) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().expect("addr").port();
@@ -44,10 +44,10 @@ fn http_html_conversion() {
 
 #[test]
 fn http_unreachable_is_error() {
-    // 待ち受けていないポートへ接続 → Acquire エラー (FR-009)。
+    // Connecting to a port with no listener → Acquire error (FR-009).
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().expect("addr").port();
-    drop(listener); // ポートを解放して接続不可にする
+    drop(listener); // Release the port to make it unreachable
     let uri = format!("http://127.0.0.1:{port}/x");
     let err = markitdown::convert(&uri).unwrap_err();
     assert!(

@@ -1,4 +1,4 @@
-//! URI 取得層。スキーム別に `Acquirer` 実装へ dispatch する (data-model.md §Acquirer)。
+//! URI acquisition layer. Dispatches to `Acquirer` implementations based on the scheme (data-model.md §Acquirer).
 
 pub mod data;
 pub mod file;
@@ -9,13 +9,13 @@ use url::Url;
 use crate::error::MarkItDownError;
 use crate::source::SourceContent;
 
-/// URI からコンテンツを取得する共通インターフェース。
+/// Common interface for acquiring content from a URI.
 pub trait Acquirer {
-    /// `url` の指すコンテンツを取得する。
+    /// Acquires the content pointed to by `url`.
     fn acquire(&self, url: &Url) -> Result<SourceContent, MarkItDownError>;
 }
 
-/// URI 文字列をパースし、スキームに応じた Acquirer で取得する (FR-004)。
+/// Parses a URI string and acquires its content using the appropriate Acquirer for the scheme (FR-004).
 pub fn acquire(uri: &str) -> Result<SourceContent, MarkItDownError> {
     let url = Url::parse(uri).map_err(|e| MarkItDownError::InvalidUri(format!("{uri}: {e}")))?;
     match url.scheme() {
@@ -26,7 +26,7 @@ pub fn acquire(uri: &str) -> Result<SourceContent, MarkItDownError> {
     }
 }
 
-/// URL パスの末尾セグメントをファイル名として取り出す。
+/// Extracts the last path segment of a URL as the filename.
 pub(crate) fn filename_from_url(url: &Url) -> Option<String> {
     url.path_segments()
         .and_then(|mut segments| segments.next_back())

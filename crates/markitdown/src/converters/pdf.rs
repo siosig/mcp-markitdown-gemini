@@ -1,10 +1,10 @@
-//! PDF 変換。`pdf-extract` で本文テキストを抽出する (FR-006a: レイアウト/表完全再現は非保証)。
+//! PDF conversion. Extracts body text using `pdf-extract` (FR-006a: exact layout/table reproduction is not guaranteed).
 
 use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 
-/// PDF から本文テキストを抽出する。
+/// Extracts body text from a PDF.
 pub struct PdfConverter;
 
 impl Converter for PdfConverter {

@@ -1,5 +1,5 @@
-//! XML 変換 → インデント整形して ```xml コードフェンスに包む。
-//! 整形に失敗した場合は元テキストをそのまま包む (頑健性優先)。
+//! XML conversion — indent-formats the XML and wraps it in a ```xml code fence.
+//! Falls back to wrapping the raw text if formatting fails (robustness first).
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -10,7 +10,7 @@ use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::decode_text;
 
-/// XML を整形する。失敗時は入力をそのまま返す。
+/// Pretty-prints XML. Returns the input as-is on failure.
 fn pretty_print(text: &str) -> String {
     let mut reader = Reader::from_str(text);
     reader.config_mut().trim_text(true);
@@ -29,7 +29,7 @@ fn pretty_print(text: &str) -> String {
     String::from_utf8(writer.into_inner()).unwrap_or_else(|_| text.to_string())
 }
 
-/// XML を Markdown コードフェンスに包んで返す。
+/// Wraps XML in a Markdown code fence and returns the result.
 pub struct XmlConverter;
 
 impl Converter for XmlConverter {

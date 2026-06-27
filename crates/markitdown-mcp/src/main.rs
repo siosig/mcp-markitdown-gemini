@@ -1,12 +1,12 @@
-//! markitdown-mcp: `convert_to_markdown` ツールを公開する MCP サーバー。
-//! microsoft/markitdown-mcp 互換 (ツール名・引数・対応スキーム)。
+//! markitdown-mcp: MCP server that exposes the `convert_to_markdown` tool.
+//! Compatible with microsoft/markitdown-mcp (tool name, arguments, and supported schemes).
 
 mod server;
 mod transport;
 
 use clap::Parser;
 
-/// CLI 起動オプション。
+/// CLI startup options.
 #[derive(Debug, Parser)]
 #[command(
     name = "markitdown-mcp",
@@ -14,15 +14,15 @@ use clap::Parser;
     about = "MCP server that converts documents at a URI to Markdown"
 )]
 struct Cli {
-    /// (後続予定) stdio ではなく HTTP/SSE トランスポートで公開する。v1 では未対応。
+    /// (Planned for a future release) Expose the server over HTTP/SSE transport instead of stdio. Not supported in v1.
     #[arg(long)]
     http: bool,
 
-    /// HTTP 公開時のバインド先ホスト (既定: localhost)。
+    /// Host to bind to when serving over HTTP (default: localhost).
     #[arg(long, default_value = "127.0.0.1")]
     host: String,
 
-    /// HTTP 公開時のポート。
+    /// Port to bind to when serving over HTTP.
     #[arg(long, default_value_t = 3001)]
     port: u16,
 }
@@ -31,7 +31,7 @@ struct Cli {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // stdout は MCP(JSON-RPC) 専用のため、ログは stderr へ出力する。
+    // stdout is reserved for MCP (JSON-RPC), so logs are written to stderr.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(

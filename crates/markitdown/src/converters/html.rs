@@ -1,4 +1,4 @@
-//! HTML 変換。`htmd` で Markdown 化し、`scraper` で `<title>` を抽出する。
+//! HTML conversion. Converts to Markdown via `htmd` and extracts `<title>` via `scraper`.
 
 use scraper::{Html, Selector};
 
@@ -7,10 +7,10 @@ use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::decode_text;
 
-/// HTML を Markdown へ変換する。
+/// Converts HTML to Markdown.
 pub struct HtmlConverter;
 
-/// HTML 文字列から `<title>` を取り出す。
+/// Extracts `<title>` from an HTML string.
 pub(crate) fn extract_title(html: &str) -> Option<String> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("title").ok()?;

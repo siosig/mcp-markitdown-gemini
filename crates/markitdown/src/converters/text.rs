@@ -1,11 +1,11 @@
-//! プレーンテキスト変換 (エンコーディング検出付き, FR-015)。
+//! Plain text conversion with encoding detection (FR-015).
 
 use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::decode_text;
 
-/// テキストをそのまま Markdown 本文として返す。
+/// Returns the text as-is as Markdown body content.
 pub struct TextConverter;
 
 impl Converter for TextConverter {

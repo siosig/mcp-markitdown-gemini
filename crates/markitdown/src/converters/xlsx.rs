@@ -1,4 +1,4 @@
-//! Excel (XLSX/XLSM/XLS/ODS) 変換。`calamine` でシートを Markdown 表へ。
+//! Excel (XLSX/XLSM/XLS/ODS) conversion. Converts sheets to Markdown tables using `calamine`.
 
 use std::io::Cursor;
 
@@ -9,7 +9,7 @@ use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::markdown_table;
 
-/// 各シートを `## SheetName` 見出し + Markdown 表へ変換する。
+/// Converts each sheet to a `## SheetName` heading followed by a Markdown table.
 pub struct XlsxConverter;
 
 impl Converter for XlsxConverter {
@@ -47,7 +47,7 @@ impl Converter for XlsxConverter {
     }
 }
 
-/// セル値を文字列化する。空セルは空文字。
+/// Serializes a cell value to a string. Empty cells return an empty string.
 fn format_cell(cell: &Data) -> String {
     match cell {
         Data::Empty => String::new(),

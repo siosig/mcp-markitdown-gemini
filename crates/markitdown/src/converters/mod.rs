@@ -1,4 +1,4 @@
-//! フォーマット別コンバーター群。各モジュールが `Converter` を実装する。
+//! Format-specific converters. Each module implements the `Converter` trait.
 
 pub mod csv;
 pub mod docx;

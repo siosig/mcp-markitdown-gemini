@@ -1,4 +1,4 @@
-//! `file:` スキーム取得 (US1)。
+//! `file:` scheme acquisition (US1).
 
 use url::Url;
 
@@ -6,7 +6,7 @@ use super::Acquirer;
 use crate::error::MarkItDownError;
 use crate::source::{Origin, SourceContent};
 
-/// ローカルファイルを読み込む Acquirer。
+/// Acquirer that reads local files.
 pub struct FileAcquirer;
 
 impl Acquirer for FileAcquirer {

@@ -1,11 +1,11 @@
-//! CSV / TSV 変換 → Markdown 表。
+//! CSV / TSV conversion to Markdown table.
 
 use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::{decode_text, markdown_table};
 
-/// CSV を Markdown 表へ変換する。
+/// Converts CSV to a Markdown table.
 pub struct CsvConverter;
 
 impl Converter for CsvConverter {
@@ -16,7 +16,7 @@ impl Converter for CsvConverter {
     ) -> Result<ConversionResult, MarkItDownError> {
         let text = decode_text(&src.bytes, src.charset.as_deref());
 
-        // 拡張子が tsv のときはタブ区切り。
+        // Use tab delimiter when the file extension is tsv.
         let delimiter = match src.extension().as_deref() {
             Some("tsv") => b'\t',
             _ => b',',

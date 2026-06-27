@@ -1,4 +1,4 @@
-//! DOCX 変換。`word/document.xml` を解析し、見出し/段落/リスト/表を Markdown 化する。
+//! DOCX conversion. Parses `word/document.xml` and converts headings, paragraphs, lists, and tables to Markdown.
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -8,10 +8,10 @@ use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 use crate::util::{decode_xml_text, local_name, markdown_table, read_zip_entry};
 
-/// DOCX を Markdown へ変換する。
+/// Converts a DOCX file to Markdown.
 pub struct DocxConverter;
 
-/// pStyle の styleId から Markdown 見出しレベルを得る。`Title` は 1、`HeadingN` は N。
+/// Returns the Markdown heading level from a pStyle styleId. `Title` maps to 1, `HeadingN` maps to N.
 fn heading_level(style: &str) -> Option<usize> {
     let lower = style.to_ascii_lowercase();
     if lower == "title" {
@@ -66,7 +66,7 @@ impl Converter for DocxConverter {
                     if local_name(e.name().as_ref()) == b"pStyle" {
                         for attr in e.attributes().flatten() {
                             if local_name(attr.key.as_ref()) == b"val" {
-                                // styleId は ASCII の識別子なので生バイトから復元してよい。
+                                // styleId is an ASCII identifier, so it is safe to recover it from raw bytes.
                                 para.style =
                                     Some(String::from_utf8_lossy(&attr.value).into_owned());
                             }
@@ -106,7 +106,7 @@ impl Converter for DocxConverter {
     }
 }
 
-/// 1 段落を Markdown へ書き出す。
+/// Writes a single paragraph to Markdown.
 fn emit_paragraph(markdown: &mut String, para: &ParaState) {
     let text = para.text.trim();
     if text.is_empty() {

@@ -1,4 +1,4 @@
-//! EPub 変換。spine 順に章 HTML を取り出し `htmd` で Markdown 化して連結する。
+//! EPub conversion. Retrieves chapter HTML in spine order, converts each to Markdown using `htmd`, and concatenates the results.
 
 use std::io::Cursor;
 
@@ -8,7 +8,7 @@ use crate::error::MarkItDownError;
 use crate::registry::{ConversionResult, Converter, Registry};
 use crate::source::SourceContent;
 
-/// EPub の各章を Markdown へ変換して連結する。
+/// Converts each chapter of an EPub to Markdown and concatenates the results.
 pub struct EpubConverter;
 
 impl Converter for EpubConverter {
