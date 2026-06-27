@@ -32,6 +32,7 @@ Thumbs.db
 /.claude/
 /.claude.json
 /.specify/
+/install_claude_plugin.sh
 
 # secretlint local-only denylist (company/personal terms — never committed)
 .secretlintrc.local.json
