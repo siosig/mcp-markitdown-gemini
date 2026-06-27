@@ -1,0 +1,29 @@
+[package]
+name = "markitdown-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MCP server exposing a convert_to_markdown tool, compatible with microsoft/markitdown-mcp."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "markitdown-mcp"
+path = "src/main.rs"
+
+[dependencies]
+markitdown = { path = "../markitdown" }
+rmcp = { version = "1.8.0", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "signal"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+rmcp = { version = "1.8.0", features = ["client", "transport-child-process", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util"] }
+serde_json = "1"
