@@ -10,23 +10,39 @@
 //! ```
 
 pub mod acquire;
+pub mod config;
 pub mod converters;
 pub mod detect;
 pub mod error;
+pub mod gemini;
 pub mod registry;
 pub mod source;
 pub mod util;
 
+pub use config::EngineConfig;
 pub use detect::DetectedFormat;
 pub use error::MarkItDownError;
+pub use gemini::GeminiConfig;
 pub use registry::{ConversionResult, Converter, Registry};
 pub use source::{Origin, SourceContent};
 
 /// Fetches a URI, converts it to Markdown, and returns the result (body + title).
+///
+/// Configuration (incl. Gemini PDF conversion) is resolved from the environment.
 pub fn convert(uri: &str) -> Result<ConversionResult, MarkItDownError> {
+    convert_with_config(uri, &EngineConfig::from_env())
+}
+
+/// Like [`convert`] but uses an explicit [`EngineConfig`] instead of reading the environment.
+///
+/// Useful for embedders and for hermetic tests (e.g. forcing local PDF conversion, or pointing
+/// Gemini at a mock server) without mutating process-global environment variables.
+pub fn convert_with_config(
+    uri: &str,
+    config: &EngineConfig,
+) -> Result<ConversionResult, MarkItDownError> {
     let source = acquire::acquire(uri)?;
-    let registry = Registry::with_defaults();
-    registry.convert(&source)
+    Registry::with_config(config).convert(&source)
 }
 
 /// Convenience wrapper that converts a URI and returns only the Markdown body.

@@ -73,7 +73,12 @@ fn html_structure_and_title() {
 
 #[test]
 fn pdf_text() {
-    let md = convert("sample.pdf").markdown;
+    // Force the local extraction route regardless of any GEMINI_API_KEY in the environment,
+    // so this test stays hermetic (no live Gemini calls).
+    let cfg = markitdown::EngineConfig::default();
+    let md = markitdown::convert_with_config(&fixture_uri("sample.pdf"), &cfg)
+        .expect("pdf local convert")
+        .markdown;
     assert!(md.contains("Hello PDF from markitdown"), "got: {md}");
 }
 

@@ -14,7 +14,7 @@ pub struct HttpAcquirer {
 impl Default for HttpAcquirer {
     fn default() -> Self {
         Self {
-            user_agent: concat!("markitdown-rust/", env!("CARGO_PKG_VERSION")).to_string(),
+            user_agent: concat!("markitdown-gemini/", env!("CARGO_PKG_VERSION")).to_string(),
         }
     }
 }

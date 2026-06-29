@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use crate::config::EngineConfig;
 use crate::converters;
 use crate::detect::{detect, DetectedFormat};
 use crate::error::MarkItDownError;
@@ -43,8 +44,15 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// Builds the default registry with converters registered for all supported formats (FR-006).
+    /// Builds the default registry, resolving configuration (incl. Gemini) from the environment.
     pub fn with_defaults() -> Self {
+        Self::with_config(&EngineConfig::from_env())
+    }
+
+    /// Builds the registry using an explicit [`EngineConfig`] (dependency injection for tests
+    /// and embedders). Only the PDF converter is configuration-aware; all other formats are
+    /// unaffected (FR-004, SC-005).
+    pub fn with_config(config: &EngineConfig) -> Self {
         let mut converters: HashMap<DetectedFormat, Box<dyn Converter>> = HashMap::new();
         converters.insert(
             DetectedFormat::PlainText,
@@ -60,7 +68,10 @@ impl Registry {
             Box::new(converters::json::JsonConverter),
         );
         converters.insert(DetectedFormat::Xml, Box::new(converters::xml::XmlConverter));
-        converters.insert(DetectedFormat::Pdf, Box::new(converters::pdf::PdfConverter));
+        converters.insert(
+            DetectedFormat::Pdf,
+            Box::new(converters::pdf::PdfConverter::new(config.gemini.clone())),
+        );
         converters.insert(
             DetectedFormat::Docx,
             Box::new(converters::docx::DocxConverter),
