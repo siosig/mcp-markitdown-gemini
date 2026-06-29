@@ -92,6 +92,51 @@ _point_plugin_at_binary() {
   fi
 }
 
+# Tool permission patterns added to ~/.claude/settings.json during install.
+TOOL_PERMISSIONS=(
+  "mcp__plugin_${PLUGIN_NAME}_${PLUGIN_NAME}__convert_to_markdown"
+)
+
+# Add tool permissions to ~/.claude/settings.json so all plugin tools run
+# without a per-call approval prompt. Idempotent.
+_grant_permissions() {
+  local settings="${HOME}/.claude/settings.json"
+  command -v node &>/dev/null || { echo "⚠ node missing — cannot auto-grant tool permissions"; return 0; }
+  node -e '
+    const fs = require("fs");
+    const [path, ...tools] = process.argv.slice(1);
+    let s = {};
+    if (fs.existsSync(path)) { try { s = JSON.parse(fs.readFileSync(path, "utf8")); } catch (_) {} }
+    s.permissions = s.permissions || {};
+    s.permissions.allow = s.permissions.allow || [];
+    let added = 0;
+    for (const t of tools) {
+      if (!s.permissions.allow.includes(t)) { s.permissions.allow.push(t); added++; }
+    }
+    fs.writeFileSync(path, JSON.stringify(s, null, 2) + "\n");
+    console.log("✓ tool permissions granted (" + added + " added): " + tools.join(", "));
+  ' "$settings" "${TOOL_PERMISSIONS[@]}"
+}
+
+# Remove tool permissions added by this installer. Idempotent.
+_revoke_permissions() {
+  local settings="${HOME}/.claude/settings.json"
+  command -v node &>/dev/null || return 0
+  [[ -f "$settings" ]] || return 0
+  node -e '
+    const fs = require("fs");
+    const [path, ...tools] = process.argv.slice(1);
+    const drop = new Set(tools);
+    const s = JSON.parse(fs.readFileSync(path, "utf8"));
+    if (s?.permissions?.allow) {
+      const before = s.permissions.allow.length;
+      s.permissions.allow = s.permissions.allow.filter(t => !drop.has(t));
+      fs.writeFileSync(path, JSON.stringify(s, null, 2) + "\n");
+      console.log("✓ tool permissions revoked (" + (before - s.permissions.allow.length) + " removed)");
+    }
+  ' "$settings" "${TOOL_PERMISSIONS[@]}"
+}
+
 _uninstall() {
   echo "→ uninstalling markitdown-gemini (-d)"
   _require claude "https://claude.ai/code"
@@ -115,6 +160,9 @@ _uninstall() {
     if [[ -f "${BIN_DIR}/${b}" ]]; then rm -f "${BIN_DIR}/${b}"; removed=$((removed + 1)); fi
   done
   echo "✓ binaries: removed ${removed} from ${BIN_DIR}"
+
+  _revoke_permissions
+
   echo "✓ repo folder: ${SCRIPT_DIR} left untouched (you cloned it; you manage it)"
   echo ""
   echo "Uninstall complete. Restart Claude Code to drop the plugin from the session."
@@ -188,6 +236,9 @@ echo "✓ '${PLUGIN_NAME}@${MARKETPLACE_NAME}': installed"
 
 # 5. Point the installed plugin's MCP server at the local binary.
 _point_plugin_at_binary "${BIN_DIR}/${BINS[0]}"
+
+# 6. Grant tool permissions so all plugin tools run without per-call approval.
+_grant_permissions
 
 echo ""
 echo "Installation complete. Restart Claude Code to activate the plugin."
