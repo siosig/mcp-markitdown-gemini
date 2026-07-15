@@ -21,13 +21,13 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 
 環境変数 `GEMINI_API_KEY` が設定されている場合、**PDF** の変換はローカルのテキスト抽出ではなく Google Gemini API 経由で行われます:
 
-1. まず `gemini-flash-latest`（`thinkingLevel: low`）で変換します。
-2. 結果がヒューリスティック判定で不十分（出力が空・文字化け・PDF サイズに対して文字密度が著しく低い・`finishReason` が不完全）な場合、自動的に `gemini-3.1-pro-preview`（`thinkingLevel: medium`）へエスカレーションします。
+1. まず `gemini-2.5-flash-lite`（`thinkingLevel: low`）で変換します。
+2. 結果がヒューリスティック判定で不十分（出力が空・文字化け・PDF サイズに対して文字密度が著しく低い・`finishReason` が不完全）な場合、自動的に `gemini-2.5-pro`（`thinkingLevel: medium`）へエスカレーションします。
 3. それでも有用な結果が得られない場合、またはハードエラー（無効なキー・レート制限・サーバーエラー・タイムアウト）の場合は、エラーを返します。ローカル抽出へ**暗黙的にフォールバックしません**。
 
 `GEMINI_API_KEY` が未設定（または空白のみ）の場合は従来どおりで、PDF はローカル抽出を使用し、ネットワーク通信は一切発生しません。影響を受けるのは PDF のみで、他のフォーマットの変換挙動は完全に従来どおりです。
 
-> 注: `gemini-3.1-pro` は `generateContent` の有効なモデル ID ではないため、エスカレーション段では `gemini-3.1-pro-preview` を使用します。Gemini を有効化すると、PDF の内容が Google Gemini API（外部ネットワーク）へ送信されます。
+> 注: Gemini を有効化すると、PDF の内容が Google Gemini API（外部ネットワーク）へ送信されます。
 
 ### 環境変数
 
@@ -41,7 +41,7 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 | `GEMINI_MIN_CHARS_PER_KB` | `5.0` | 出力の文字/KB がこれを下回るとエスカレーション（大きい PDF 向け）。 |
 | `GEMINI_DENSITY_MIN_BYTES` | `51200`（50 KB） | 低密度判定を適用する PDF の最小サイズ。 |
 
-モデルと thinking level は固定です（一次 `gemini-flash-latest`/`low`、エスカレーション `gemini-3.1-pro-preview`/`medium`）。
+モデルと thinking level は固定です（一次 `gemini-2.5-flash-lite`/`low`、エスカレーション `gemini-2.5-pro`/`medium`）。
 
 ## 対応スキーム
 

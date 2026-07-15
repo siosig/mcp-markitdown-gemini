@@ -19,13 +19,13 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 
 When the `GEMINI_API_KEY` environment variable is set, **PDF** conversion is routed through the Google Gemini API instead of local text extraction:
 
-1. The PDF is first converted with `gemini-flash-latest` (`thinkingLevel: low`).
-2. If the result is judged insufficient by a heuristic (empty output, garbled text, very low text density relative to the PDF size, or an incomplete `finishReason`), it automatically escalates to `gemini-3.1-pro-preview` (`thinkingLevel: medium`).
+1. The PDF is first converted with `gemini-2.5-flash-lite` (`thinkingLevel: low`).
+2. If the result is judged insufficient by a heuristic (empty output, garbled text, very low text density relative to the PDF size, or an incomplete `finishReason`), it automatically escalates to `gemini-2.5-pro` (`thinkingLevel: medium`).
 3. If Gemini still cannot produce a usable result — or on a hard error (invalid key, rate limit, server error, timeout) — the request returns an error. It does **not** silently fall back to local extraction.
 
 When `GEMINI_API_KEY` is unset (or empty/whitespace), behavior is unchanged: PDFs use the built-in local extractor and no network request is made. Only PDF is affected; all other formats convert exactly as before.
 
-> Note: `gemini-3.1-pro` is not a valid `generateContent` model id, so the escalation tier uses `gemini-3.1-pro-preview`. Enabling Gemini sends PDF contents to the Google Gemini API (external network).
+> Note: Enabling Gemini sends PDF contents to the Google Gemini API (external network).
 
 ### Environment variables
 
@@ -39,7 +39,7 @@ When `GEMINI_API_KEY` is unset (or empty/whitespace), behavior is unchanged: PDF
 | `GEMINI_MIN_CHARS_PER_KB` | `5.0` | Escalate if output chars-per-KB drops below this (for large PDFs). |
 | `GEMINI_DENSITY_MIN_BYTES` | `51200` (50 KB) | The low-density check applies only to PDFs at least this large. |
 
-Models and thinking levels are fixed (primary `gemini-flash-latest`/`low`, escalation `gemini-3.1-pro-preview`/`medium`).
+Models and thinking levels are fixed (primary `gemini-2.5-flash-lite`/`low`, escalation `gemini-2.5-pro`/`medium`).
 
 ## Supported Schemes
 

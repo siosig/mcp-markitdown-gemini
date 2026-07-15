@@ -110,7 +110,7 @@ fn spawn_gemini_mock(flash: Canned, pro: Canned) -> u16 {
             let n = stream.read(&mut buf).unwrap_or(0);
             let head = String::from_utf8_lossy(&buf[..n]);
             let request_line = head.lines().next().unwrap_or("");
-            let canned = if request_line.contains("gemini-3.1-pro-preview") {
+            let canned = if request_line.contains("gemini-2.5-pro") {
                 pro
             } else {
                 flash

@@ -6,18 +6,17 @@
 /// Default Gemini API base URL.
 pub const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
 
-/// Primary-tier model id (alias resolving to the latest Gemini Flash).
-pub const PRIMARY_MODEL: &str = "gemini-flash-latest";
-/// Escalation-tier model id. `gemini-3.1-pro` is not a valid generateContent id, so the
-/// `-preview` form is used (research.md §1).
-pub const ESCALATION_MODEL: &str = "gemini-3.1-pro-preview";
+/// Primary-tier model id.
+pub const PRIMARY_MODEL: &str = "gemini-2.5-flash-lite";
+/// Escalation-tier model id.
+pub const ESCALATION_MODEL: &str = "gemini-2.5-pro";
 
 /// Per-tier model settings.
 #[derive(Debug, Clone)]
 pub struct ModelTier {
     /// Model id placed in the `models/{model}:generateContent` path.
     pub model: String,
-    /// `generationConfig.thinkingConfig.thinkingLevel` value (Gemini 3.x enum).
+    /// `generationConfig.thinkingConfig.thinkingLevel` value (Gemini 3.x/2.5 series enum).
     pub thinking_level: &'static str,
 }
 
