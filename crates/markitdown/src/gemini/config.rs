@@ -16,8 +16,8 @@ pub const ESCALATION_MODEL: &str = "gemini-2.5-pro";
 pub struct ModelTier {
     /// Model id placed in the `models/{model}:generateContent` path.
     pub model: String,
-    /// `generationConfig.thinkingConfig.thinkingLevel` value (Gemini 3.x/2.5 series enum).
-    pub thinking_level: &'static str,
+    /// `generationConfig.thinkingConfig.thinkingBudget` value (Gemini 2.5 series; token budget, -1 = dynamic).
+    pub thinking_budget: i32,
 }
 
 /// Thresholds for the accuracy heuristic that decides flash→pro escalation (research.md §4).
@@ -48,9 +48,9 @@ pub struct GeminiConfig {
     pub api_key: String,
     /// API base URL (overridable for tests).
     pub base_url: String,
-    /// Primary conversion tier (flash / low).
+    /// Primary conversion tier (flash-lite, thinking budget 512).
     pub primary: ModelTier,
-    /// Escalation conversion tier (pro / medium).
+    /// Escalation conversion tier (pro, dynamic thinking budget).
     pub escalation: ModelTier,
     /// Maximum PDF size sent via inline_data; larger inputs are rejected (research.md §3).
     pub inline_max_bytes: usize,
@@ -68,11 +68,11 @@ impl GeminiConfig {
             base_url: DEFAULT_BASE_URL.to_string(),
             primary: ModelTier {
                 model: PRIMARY_MODEL.to_string(),
-                thinking_level: "low",
+                thinking_budget: 512,
             },
             escalation: ModelTier {
                 model: ESCALATION_MODEL.to_string(),
-                thinking_level: "medium",
+                thinking_budget: -1,
             },
             inline_max_bytes: 20 * 1024 * 1024,
             timeout_secs: 120,
