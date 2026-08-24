@@ -21,8 +21,8 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 
 環境変数 `GEMINI_API_KEY` が設定されている場合、**PDF** の変換はローカルのテキスト抽出ではなく Google Gemini API 経由で行われます:
 
-1. まず `gemini-2.5-flash-lite`（`thinkingBudget: 512`）で変換します。
-2. 結果がヒューリスティック判定で不十分（出力が空・文字化け・PDF サイズに対して文字密度が著しく低い・`finishReason` が不完全）な場合、自動的に `gemini-2.5-pro`（`thinkingBudget: -1`、動的思考）へエスカレーションします。
+1. まず `gemini-flash-lite-latest`（`thinkingLevel: low`）で変換します。
+2. 結果がヒューリスティック判定で不十分（出力が空・文字化け・PDF サイズに対して文字密度が著しく低い・`finishReason` が不完全）な場合、同じモデルを `thinkingLevel: high` で自動的に再試行します。エスカレーションで買うのは思考の深さであり、より大きいモデルではありません。
 3. それでも有用な結果が得られない場合、またはハードエラー（無効なキー・レート制限・サーバーエラー・タイムアウト）の場合は、エラーを返します。ローカル抽出へ**暗黙的にフォールバックしません**。
 
 `GEMINI_API_KEY` が未設定（または空白のみ）の場合は従来どおりで、PDF はローカル抽出を使用し、ネットワーク通信は一切発生しません。影響を受けるのは PDF のみで、他のフォーマットの変換挙動は完全に従来どおりです。
@@ -41,7 +41,7 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 | `GEMINI_MIN_CHARS_PER_KB` | `5.0` | 出力の文字/KB がこれを下回るとエスカレーション（大きい PDF 向け）。 |
 | `GEMINI_DENSITY_MIN_BYTES` | `51200`（50 KB） | 低密度判定を適用する PDF の最小サイズ。 |
 
-モデルと thinking budget は固定です（一次 `gemini-2.5-flash-lite`/`thinkingBudget=512`、エスカレーション `gemini-2.5-pro`/`thinkingBudget=-1`（動的思考））。
+モデルと thinking level は固定です（一次 `gemini-flash-lite-latest`/`thinkingLevel=low`、エスカレーション `gemini-flash-lite-latest`/`thinkingLevel=high`）。`-latest` エイリアスは意図的な選択です。具体名のモデルは退役します（`gemini-2.5-flash-lite` は 2026-08-05 に 404 を返し始めた）が、エイリアスは Google 側のポインタに追従するためです。
 
 ## 対応スキーム
 

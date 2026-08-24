@@ -2,8 +2,9 @@
 //!
 //! Two routes (research.md §5, data-model.md §5):
 //! - No `GeminiConfig` (GEMINI_API_KEY unset): local text extraction via `pdf-extract`.
-//! - With `GeminiConfig`: Gemini flash(low) → accuracy assessment → escalate to pro(medium) →
-//!   assessment → error. No fallback to local on Gemini failure (FR-006a).
+//! - With `GeminiConfig`: Gemini flash-lite(thinking low) → accuracy assessment →
+//!   escalate to the same model at thinking high → assessment → error. No fallback
+//!   to local on Gemini failure (FR-006a).
 
 use crate::error::MarkItDownError;
 use crate::gemini::assess::{assess, Accuracy};
@@ -29,7 +30,7 @@ impl PdfConverter {
         Ok(ConversionResult::text(text.trim().to_string()))
     }
 
-    /// Gemini route: flash → assess → (escalate) pro → assess → error.
+    /// Gemini route: primary → assess → (escalate to thinking high) → assess → error.
     fn convert_gemini(
         &self,
         cfg: &GeminiConfig,

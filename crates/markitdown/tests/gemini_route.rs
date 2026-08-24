@@ -1,13 +1,15 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)] // Allowed in test code
 //! Integration tests for the PDF Gemini conversion route (002-pdf-gemini-conversion).
 //!
-//! Uses a local mock HTTP server that routes by model name in the request path, so flash
-//! and pro responses can be controlled independently. Gemini config is injected explicitly
-//! (no env mutation) for hermetic tests.
+//! Uses a local mock HTTP server that routes by call order (first request = primary tier,
+//! later ones = escalation tier), so the two tiers' responses can be controlled independently
+//! even though they now share one model id. Gemini config is injected explicitly (no env
+//! mutation) for hermetic tests.
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -152,10 +154,15 @@ fn read_request(stream: &mut std::net::TcpStream) -> Option<(String, Vec<u8>)> {
     Some((request_line, body))
 }
 
-/// Spawns a mock Gemini server. Routes each request to `flash` or `pro` by the model id in the
-/// request path, serving the same canned response for repeated calls to that tier. Also parses
-/// and captures each request's JSON body into a tier-specific shared list, so callers can later
-/// inspect exactly what was sent (e.g. the `thinkingConfig` field).
+/// Spawns a mock Gemini server. Routes the **first** request to `flash` (the primary tier) and
+/// every later one to `pro` (the escalation tier), serving the same canned response for repeated
+/// calls to that tier. Also parses and captures each request's JSON body into a tier-specific
+/// shared list, so callers can later inspect exactly what was sent (e.g. the `thinkingConfig`
+/// field).
+///
+/// Routing is by call order, not by model id: both tiers now name the same `-latest` alias and
+/// differ only in `thinkingLevel`, so the request path no longer identifies the tier. Order is
+/// unambiguous because escalation is issued only after the primary response has been assessed.
 fn spawn_gemini_mock(flash: Canned, pro: Canned) -> (u16, CapturedBodies, CapturedBodies) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().expect("addr").port();
@@ -163,6 +170,7 @@ fn spawn_gemini_mock(flash: Canned, pro: Canned) -> (u16, CapturedBodies, Captur
     let pro_bodies: CapturedBodies = Arc::new(Mutex::new(Vec::new()));
     let flash_bodies_srv = Arc::clone(&flash_bodies);
     let pro_bodies_srv = Arc::clone(&pro_bodies);
+    let seen = Arc::new(AtomicUsize::new(0));
     thread::spawn(move || loop {
         let Ok((mut stream, _)) = listener.accept() else {
             return;
@@ -171,11 +179,12 @@ fn spawn_gemini_mock(flash: Canned, pro: Canned) -> (u16, CapturedBodies, Captur
         let pro = pro.clone();
         let flash_bodies = Arc::clone(&flash_bodies_srv);
         let pro_bodies = Arc::clone(&pro_bodies_srv);
+        let seen = Arc::clone(&seen);
         thread::spawn(move || {
-            let Some((request_line, body)) = read_request(&mut stream) else {
+            let Some((_request_line, body)) = read_request(&mut stream) else {
                 return;
             };
-            let is_pro = request_line.contains("gemini-2.5-pro");
+            let is_pro = seen.fetch_add(1, Ordering::SeqCst) > 0;
             if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&body) {
                 let bucket = if is_pro { &pro_bodies } else { &flash_bodies };
                 bucket.lock().expect("lock captured bodies").push(value);
@@ -231,8 +240,8 @@ fn flash_sufficient_returns_primary_without_escalation() {
         "pro must not be called when flash is sufficient: {md}"
     );
 
-    // Verify the primary (flash) request carried a numeric thinkingBudget (512), not the old
-    // thinkingLevel string field.
+    // Verify the primary request carried thinkingLevel "low", not the 2.5-series numeric
+    // thinkingBudget (deprecated for the 3.x line the alias resolves to).
     let bodies = flash_bodies.lock().expect("lock flash bodies");
     assert_eq!(
         bodies.len(),
@@ -241,13 +250,13 @@ fn flash_sufficient_returns_primary_without_escalation() {
     );
     let thinking_config = &bodies[0]["generationConfig"]["thinkingConfig"];
     assert_eq!(
-        thinking_config["thinkingBudget"],
-        serde_json::json!(512),
-        "expected numeric thinkingBudget 512, got: {thinking_config:?}"
+        thinking_config["thinkingLevel"],
+        serde_json::json!("low"),
+        "expected thinkingLevel low, got: {thinking_config:?}"
     );
     assert!(
-        thinking_config.get("thinkingLevel").is_none(),
-        "thinkingConfig must not contain the old thinkingLevel field, got: {thinking_config:?}"
+        thinking_config.get("thinkingBudget").is_none(),
+        "thinkingConfig must not contain the legacy thinkingBudget field, got: {thinking_config:?}"
     );
 }
 
@@ -266,8 +275,8 @@ fn flash_insufficient_escalates_to_pro() {
         "expected escalated pro output, got: {md}"
     );
 
-    // Verify the escalated (pro) request carried a numeric thinkingBudget (-1, i.e. dynamic
-    // thinking), not the old thinkingLevel string field.
+    // Verify the escalated request carried thinkingLevel "high" — with both tiers on the same
+    // model, this field IS the escalation.
     let bodies = pro_bodies.lock().expect("lock pro bodies");
     assert_eq!(
         bodies.len(),
@@ -276,13 +285,13 @@ fn flash_insufficient_escalates_to_pro() {
     );
     let thinking_config = &bodies[0]["generationConfig"]["thinkingConfig"];
     assert_eq!(
-        thinking_config["thinkingBudget"],
-        serde_json::json!(-1),
-        "expected numeric thinkingBudget -1, got: {thinking_config:?}"
+        thinking_config["thinkingLevel"],
+        serde_json::json!("high"),
+        "expected thinkingLevel high, got: {thinking_config:?}"
     );
     assert!(
-        thinking_config.get("thinkingLevel").is_none(),
-        "thinkingConfig must not contain the old thinkingLevel field, got: {thinking_config:?}"
+        thinking_config.get("thinkingBudget").is_none(),
+        "thinkingConfig must not contain the legacy thinkingBudget field, got: {thinking_config:?}"
     );
 }
 

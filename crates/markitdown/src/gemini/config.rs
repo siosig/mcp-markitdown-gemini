@@ -7,17 +7,33 @@
 pub const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
 
 /// Primary-tier model id.
-pub const PRIMARY_MODEL: &str = "gemini-2.5-flash-lite";
-/// Escalation-tier model id.
-pub const ESCALATION_MODEL: &str = "gemini-2.5-pro";
+///
+/// Both tiers name the same `-latest` alias on purpose: the two tiers differ by
+/// *how hard the model thinks*, not by which model runs. Concrete ids kept being
+/// retired underneath this crate (`gemini-2.5-flash-lite` began returning 404 on
+/// 2026-08-05), and an alias follows Google's own pointer instead.
+pub const PRIMARY_MODEL: &str = "gemini-flash-lite-latest";
+/// Escalation-tier model id. Same model as [`PRIMARY_MODEL`]; see the note there.
+pub const ESCALATION_MODEL: &str = "gemini-flash-lite-latest";
+
+/// Thinking level for the primary tier — cheap first pass.
+pub const PRIMARY_THINKING_LEVEL: &str = "low";
+/// Thinking level for the escalation tier — this is the whole escalation now.
+pub const ESCALATION_THINKING_LEVEL: &str = "high";
 
 /// Per-tier model settings.
 #[derive(Debug, Clone)]
 pub struct ModelTier {
     /// Model id placed in the `models/{model}:generateContent` path.
     pub model: String,
-    /// `generationConfig.thinkingConfig.thinkingBudget` value (Gemini 2.5 series; token budget, -1 = dynamic).
-    pub thinking_budget: i32,
+    /// `generationConfig.thinkingConfig.thinkingLevel` value
+    /// (`minimal` / `low` / `medium` / `high`).
+    ///
+    /// Not `thinkingBudget`: the numeric budget is the Gemini 2.5-series form,
+    /// deprecated for 3.x and rejected outright when combined with a level. The
+    /// aliases above resolve to the 3.x line, so the level form is the only one
+    /// that stays valid.
+    pub thinking_level: String,
 }
 
 /// Thresholds for the accuracy heuristic that decides flash→pro escalation (research.md §4).
@@ -68,11 +84,11 @@ impl GeminiConfig {
             base_url: DEFAULT_BASE_URL.to_string(),
             primary: ModelTier {
                 model: PRIMARY_MODEL.to_string(),
-                thinking_budget: 512,
+                thinking_level: PRIMARY_THINKING_LEVEL.to_string(),
             },
             escalation: ModelTier {
                 model: ESCALATION_MODEL.to_string(),
-                thinking_budget: -1,
+                thinking_level: ESCALATION_THINKING_LEVEL.to_string(),
             },
             inline_max_bytes: 20 * 1024 * 1024,
             timeout_secs: 120,

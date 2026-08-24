@@ -43,7 +43,7 @@ pub fn generate(
             ]
         }],
         "generationConfig": {
-            "thinkingConfig": { "thinkingBudget": tier.thinking_budget },
+            "thinkingConfig": { "thinkingLevel": tier.thinking_level },
             "maxOutputTokens": 8192,
             "temperature": 0
         }
