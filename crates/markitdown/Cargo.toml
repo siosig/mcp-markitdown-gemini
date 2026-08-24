@@ -11,13 +11,23 @@ description = "Convert documents (PDF, Office, HTML, etc.) at a URI to Markdown.
 workspace = true
 
 [dependencies]
-base64 = "0.22.1"
 calamine = "0.35.0"
 chardetng = "1.0.0"
 csv = "1.4.0"
 data-url = "0.3.2"
 encoding_rs = "0.8.35"
 epub = "2.1.5"
+# Gemini SDK for the PDF conversion route (Rust port of google-genai, same author
+# as this repository). `default-features = false` drops the `live` (WebSocket)
+# API, and deliberately does NOT enable `rustls-tls`: that feature requires
+# `reqwest/webpki-roots`, which reqwest removed in 0.13.4 (the version this
+# workspace resolves). TLS still works because Cargo unifies features across the
+# graph — the `reqwest` entry below enables `rustls` (platform-verifier roots)
+# on the same reqwest build the SDK uses. If the `reqwest` dependency is ever
+# removed, the SDK loses HTTPS at runtime (builds fine, fails on request), so
+# keep these two entries in sync. `blocking` provides the sync client; it must
+# only run on a thread with no tokio context (see src/gemini/client.rs).
+gemini-genai = { version = "0.2", default-features = false, features = ["blocking"] }
 htmd = "0.5.4"
 infer = "0.19.0"
 kamadak-exif = "0.6.1"

@@ -3,6 +3,8 @@
 //! Values are resolved from environment variables in [`GeminiConfig::from_env`], but the
 //! type itself carries no I/O so it can be constructed directly in tests (dependency injection).
 
+pub use gemini_genai::types::ThinkingLevel;
+
 /// Default Gemini API base URL.
 pub const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
 
@@ -17,23 +19,23 @@ pub const PRIMARY_MODEL: &str = "gemini-flash-lite-latest";
 pub const ESCALATION_MODEL: &str = "gemini-flash-lite-latest";
 
 /// Thinking level for the primary tier — cheap first pass.
-pub const PRIMARY_THINKING_LEVEL: &str = "low";
+pub const PRIMARY_THINKING_LEVEL: ThinkingLevel = ThinkingLevel::Low;
 /// Thinking level for the escalation tier — this is the whole escalation now.
-pub const ESCALATION_THINKING_LEVEL: &str = "high";
+pub const ESCALATION_THINKING_LEVEL: ThinkingLevel = ThinkingLevel::High;
 
 /// Per-tier model settings.
 #[derive(Debug, Clone)]
 pub struct ModelTier {
     /// Model id placed in the `models/{model}:generateContent` path.
     pub model: String,
-    /// `generationConfig.thinkingConfig.thinkingLevel` value
-    /// (`minimal` / `low` / `medium` / `high`).
+    /// `thinkingConfig` level sent with the request (wire form `LOW` / `HIGH`).
     ///
-    /// Not `thinkingBudget`: the numeric budget is the Gemini 2.5-series form,
-    /// deprecated for 3.x and rejected outright when combined with a level. The
-    /// aliases above resolve to the 3.x line, so the level form is the only one
-    /// that stays valid.
-    pub thinking_level: String,
+    /// The SDK enum, not a string: `From<String>` maps only the uppercase wire
+    /// spellings, so a hand-typed `"low"` would silently become
+    /// `Unknown("low")` — the enum makes that unrepresentable. Levels, not the
+    /// 2.5-series numeric `thinkingBudget`: the `-latest` aliases above resolve
+    /// to the 3.x line, which rejects the budget form.
+    pub thinking_level: ThinkingLevel,
 }
 
 /// Thresholds for the accuracy heuristic that decides flash→pro escalation (research.md §4).
@@ -64,9 +66,9 @@ pub struct GeminiConfig {
     pub api_key: String,
     /// API base URL (overridable for tests).
     pub base_url: String,
-    /// Primary conversion tier (flash-lite, thinking budget 512).
+    /// Primary conversion tier (flash-lite alias, thinking level low).
     pub primary: ModelTier,
-    /// Escalation conversion tier (pro, dynamic thinking budget).
+    /// Escalation conversion tier (same model, thinking level high).
     pub escalation: ModelTier,
     /// Maximum PDF size sent via inline_data; larger inputs are rejected (research.md §3).
     pub inline_max_bytes: usize,
@@ -84,11 +86,11 @@ impl GeminiConfig {
             base_url: DEFAULT_BASE_URL.to_string(),
             primary: ModelTier {
                 model: PRIMARY_MODEL.to_string(),
-                thinking_level: PRIMARY_THINKING_LEVEL.to_string(),
+                thinking_level: PRIMARY_THINKING_LEVEL,
             },
             escalation: ModelTier {
                 model: ESCALATION_MODEL.to_string(),
-                thinking_level: ESCALATION_THINKING_LEVEL.to_string(),
+                thinking_level: ESCALATION_THINKING_LEVEL,
             },
             inline_max_bytes: 20 * 1024 * 1024,
             timeout_secs: 120,

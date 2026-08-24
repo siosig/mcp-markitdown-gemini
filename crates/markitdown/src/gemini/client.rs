@@ -1,9 +1,14 @@
-//! Blocking Gemini `generateContent` REST client (research.md §2/§8, contracts/gemini_pdf_conversion.md §3).
+//! Gemini `generateContent` client backed by the `gemini-genai` SDK
+//! (contracts/gemini_client_contract.md, research.md D3-D8 of 004-genai-rs-migration).
 //!
-//! Sends a PDF as inline base64 data and returns the generated Markdown text plus the
-//! `finishReason`. Hard failures (auth/rate/server/network/timeout) map to typed `Decode` errors.
+//! Sends a PDF as inline data and returns the generated Markdown text plus the
+//! `finishReason`. Hard failures (auth/rate/server/network/timeout) map to typed
+//! `Decode` errors with the same category strings as the hand-rolled client this
+//! replaced. One call = one HTTP attempt (no SDK retry) on a fresh client.
 
-use base64::Engine as _;
+use gemini_genai::types::{
+    GenerateContentConfig, GenerateContentResponse, HttpOptions, Part, ThinkingConfig,
+};
 
 use super::config::{GeminiConfig, ModelTier};
 use crate::error::MarkItDownError;
@@ -28,124 +33,124 @@ pub fn generate(
     tier: &ModelTier,
     pdf_bytes: &[u8],
 ) -> Result<GeminiResponse, MarkItDownError> {
-    let encoded = base64::engine::general_purpose::STANDARD.encode(pdf_bytes);
-    let url = format!(
-        "{}/v1beta/models/{}:generateContent",
-        cfg.base_url.trim_end_matches('/'),
-        tier.model
-    );
+    // The SDK's blocking client refuses to run wherever a tokio runtime context
+    // is detectable (`Error::BlockingInsideRuntime`) — and `spawn_blocking`
+    // threads, where markitdown-mcp invokes this crate, still carry that
+    // context. A fresh OS thread carries none, so the entire client lifecycle
+    // (build, call, drop) happens there.
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| generate_on_clean_thread(cfg, tier, pdf_bytes))
+            .join()
+            .unwrap_or_else(|_| {
+                Err(MarkItDownError::decode(
+                    "pdf-gemini",
+                    "conversion worker thread panicked",
+                ))
+            })
+    })
+}
 
-    let body = serde_json::json!({
-        "contents": [{
-            "parts": [
-                { "inline_data": { "mime_type": "application/pdf", "data": encoded } },
-                { "text": PROMPT }
-            ]
-        }],
-        "generationConfig": {
-            "thinkingConfig": { "thinkingLevel": tier.thinking_level },
-            "maxOutputTokens": 8192,
-            "temperature": 0
-        }
-    });
-
-    let payload_out = serde_json::to_vec(&body).map_err(|e| {
-        MarkItDownError::decode("pdf-gemini", format!("failed to encode request: {e}"))
-    })?;
-
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
+/// Builds a one-shot SDK client and performs the request. Must run on a thread
+/// with no tokio runtime context (see [`generate`]).
+fn generate_on_clean_thread(
+    cfg: &GeminiConfig,
+    tier: &ModelTier,
+    pdf_bytes: &[u8],
+) -> Result<GeminiResponse, MarkItDownError> {
+    let timeout_ms = i64::try_from(cfg.timeout_secs.saturating_mul(1000)).unwrap_or(i64::MAX);
+    let client = gemini_genai::blocking::Client::builder()
+        .api_key(cfg.api_key.clone())
+        .http_options(HttpOptions {
+            base_url: Some(cfg.base_url.clone()),
+            timeout: Some(timeout_ms),
+            // `retry_options` stays `None`: a single attempt, matching the
+            // hand-rolled client this replaced. The mock-server tests route
+            // requests by call order, so an SDK-level retry would silently
+            // reach the escalation tier's canned response.
+            ..Default::default()
+        })
         .build()
-        .map_err(|e| MarkItDownError::decode("pdf-gemini", format!("client build failed: {e}")))?;
+        .map_err(map_sdk_error)?;
+
+    let contents = vec![
+        Part::from_bytes(pdf_bytes.to_vec(), "application/pdf"),
+        Part::from_text(PROMPT),
+    ];
+    let config = GenerateContentConfig {
+        temperature: Some(0.0),
+        max_output_tokens: Some(8192),
+        thinking_config: Some(ThinkingConfig {
+            thinking_level: Some(tier.thinking_level.clone()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
 
     let response = client
-        .post(&url)
-        .header("x-goog-api-key", &cfg.api_key)
-        .header("content-type", "application/json")
-        .body(payload_out)
-        .send()
-        .map_err(|e| {
-            let kind = if e.is_timeout() { "timeout" } else { "network" };
-            MarkItDownError::decode("pdf-gemini", format!("{kind} error: {e}"))
-        })?;
+        .models()
+        .generate_content(&tier.model, contents, Some(config))
+        .map_err(map_sdk_error)?;
 
-    let status = response.status();
-    let payload = response
-        .text()
-        .map_err(|e| MarkItDownError::decode("pdf-gemini", format!("failed to read body: {e}")))?;
+    distill(response)
+}
 
-    if !status.is_success() {
-        let detail = serde_json::from_str::<serde_json::Value>(&payload)
-            .ok()
-            .and_then(|v| {
-                v.get("error")
-                    .and_then(|e| e.get("message"))
-                    .and_then(|m| m.as_str())
-                    .map(str::to_string)
-            })
-            .unwrap_or_else(|| payload.clone());
-        let kind = match status.as_u16() {
-            400 | 403 => "auth",
-            429 => "rate-limit",
-            500..=599 => "server",
-            _ => "http",
-        };
-        return Err(MarkItDownError::decode(
-            "pdf-gemini",
-            format!("{kind} error ({}): {detail}", status.as_u16()),
-        ));
-    }
-
-    let value: serde_json::Value = serde_json::from_str(&payload).map_err(|e| {
-        MarkItDownError::decode("pdf-gemini", format!("invalid response JSON: {e}"))
-    })?;
-
-    let has_candidate = value
-        .get("candidates")
-        .and_then(|c| c.as_array())
-        .map(|a| !a.is_empty())
-        .unwrap_or(false);
+/// Reduces an SDK response to [`GeminiResponse`], preserving the hand-rolled
+/// client's semantics: no candidates is a "prompt blocked" error, thought parts
+/// are excluded from the text (the SDK's `text()` already does that), and a
+/// missing finish reason defaults to `STOP`.
+fn distill(response: GenerateContentResponse) -> Result<GeminiResponse, MarkItDownError> {
+    let has_candidate = response
+        .candidates
+        .as_deref()
+        .is_some_and(|c| !c.is_empty());
     if !has_candidate {
-        let block = value
-            .get("promptFeedback")
-            .and_then(|p| p.get("blockReason"))
-            .and_then(|b| b.as_str())
-            .unwrap_or("no candidates returned");
+        let block = response
+            .prompt_feedback
+            .as_ref()
+            .and_then(|feedback| feedback.block_reason.as_ref())
+            .map_or_else(
+                || "no candidates returned".to_string(),
+                |b| b.as_str().to_string(),
+            );
         return Err(MarkItDownError::decode(
             "pdf-gemini",
             format!("prompt blocked: {block}"),
         ));
     }
 
-    let candidate = &value["candidates"][0];
-    let finish_reason = candidate
-        .get("finishReason")
-        .and_then(|f| f.as_str())
-        .unwrap_or("STOP")
-        .to_string();
-
-    let mut text = String::new();
-    if let Some(parts) = candidate
-        .get("content")
-        .and_then(|c| c.get("parts"))
-        .and_then(|p| p.as_array())
-    {
-        for part in parts {
-            if part
-                .get("thought")
-                .and_then(|t| t.as_bool())
-                .unwrap_or(false)
-            {
-                continue;
-            }
-            if let Some(chunk) = part.get("text").and_then(|t| t.as_str()) {
-                text.push_str(chunk);
-            }
-        }
-    }
+    let finish_reason = response
+        .candidates
+        .as_deref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.finish_reason.as_ref())
+        .map_or_else(|| "STOP".to_string(), |r| r.as_str().to_string());
 
     Ok(GeminiResponse {
-        text,
+        text: response.text().unwrap_or_default(),
         finish_reason,
     })
+}
+
+/// Maps SDK errors onto the category strings the engine (and its tests) rely
+/// on: auth / rate-limit / server / http by status code, timeout / network for
+/// transport failures, and a generic label for anything else.
+fn map_sdk_error(err: gemini_genai::Error) -> MarkItDownError {
+    use gemini_genai::Error;
+
+    let message = match err {
+        Error::Api(api) => {
+            let kind = match api.code {
+                400 | 403 => "auth",
+                429 => "rate-limit",
+                500..=599 => "server",
+                _ => "http",
+            };
+            format!("{kind} error ({}): {}", api.code, api.message)
+        }
+        Error::Http(e) if e.is_timeout() => format!("timeout error: {e}"),
+        Error::Http(e) => format!("network error: {e}"),
+        other => format!("gemini client error: {other}"),
+    };
+    MarkItDownError::decode("pdf-gemini", message)
 }

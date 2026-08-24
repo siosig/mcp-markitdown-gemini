@@ -1,4 +1,4 @@
-//! Gemini-based PDF conversion: configuration, REST client, and accuracy assessment.
+//! Gemini-based PDF conversion: configuration, `gemini-genai`-backed client, and accuracy assessment.
 //!
 //! Used by [`crate::converters::pdf::PdfConverter`] when a `GeminiConfig` is injected
 //! (i.e. `GEMINI_API_KEY` is set). See research.md and contracts/gemini_pdf_conversion.md.

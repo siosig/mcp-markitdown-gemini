@@ -240,8 +240,11 @@ fn flash_sufficient_returns_primary_without_escalation() {
         "pro must not be called when flash is sufficient: {md}"
     );
 
-    // Verify the primary request carried thinkingLevel "low", not the 2.5-series numeric
-    // thinkingBudget (deprecated for the 3.x line the alias resolves to).
+    // Verify the primary request carried thinking level LOW, not the 2.5-series numeric
+    // thinking budget (deprecated for the 3.x line the alias resolves to). The wire shape
+    // is measured, not assumed: the SDK's converter layer camelCases the outer keys
+    // (generationConfig/thinkingConfig) but passes ThinkingConfig through serde untouched,
+    // so the inner key stays snake_case and the value is the enum's uppercase wire form.
     let bodies = flash_bodies.lock().expect("lock flash bodies");
     assert_eq!(
         bodies.len(),
@@ -250,13 +253,14 @@ fn flash_sufficient_returns_primary_without_escalation() {
     );
     let thinking_config = &bodies[0]["generationConfig"]["thinkingConfig"];
     assert_eq!(
-        thinking_config["thinkingLevel"],
-        serde_json::json!("low"),
-        "expected thinkingLevel low, got: {thinking_config:?}"
+        thinking_config["thinking_level"],
+        serde_json::json!("LOW"),
+        "expected thinking_level LOW, got: {thinking_config:?}"
     );
     assert!(
-        thinking_config.get("thinkingBudget").is_none(),
-        "thinkingConfig must not contain the legacy thinkingBudget field, got: {thinking_config:?}"
+        thinking_config.get("thinkingBudget").is_none()
+            && thinking_config.get("thinking_budget").is_none(),
+        "thinkingConfig must not contain a thinking budget in any spelling, got: {thinking_config:?}"
     );
 }
 
@@ -275,8 +279,9 @@ fn flash_insufficient_escalates_to_pro() {
         "expected escalated pro output, got: {md}"
     );
 
-    // Verify the escalated request carried thinkingLevel "high" — with both tiers on the same
-    // model, this field IS the escalation.
+    // Verify the escalated request carried thinking level HIGH — with both tiers on the same
+    // model, this field IS the escalation. See the primary-tier test for why the inner key
+    // is snake_case while the outer keys are camelCase.
     let bodies = pro_bodies.lock().expect("lock pro bodies");
     assert_eq!(
         bodies.len(),
@@ -285,13 +290,14 @@ fn flash_insufficient_escalates_to_pro() {
     );
     let thinking_config = &bodies[0]["generationConfig"]["thinkingConfig"];
     assert_eq!(
-        thinking_config["thinkingLevel"],
-        serde_json::json!("high"),
-        "expected thinkingLevel high, got: {thinking_config:?}"
+        thinking_config["thinking_level"],
+        serde_json::json!("HIGH"),
+        "expected thinking_level HIGH, got: {thinking_config:?}"
     );
     assert!(
-        thinking_config.get("thinkingBudget").is_none(),
-        "thinkingConfig must not contain the legacy thinkingBudget field, got: {thinking_config:?}"
+        thinking_config.get("thinkingBudget").is_none()
+            && thinking_config.get("thinking_budget").is_none(),
+        "thinkingConfig must not contain a thinking budget in any spelling, got: {thinking_config:?}"
     );
 }
 
@@ -410,5 +416,59 @@ fn escalation_still_insufficient_errors() {
     assert!(
         err.to_string().contains("escalation insufficient"),
         "got: {err}"
+    );
+}
+
+/// Thought parts must never leak into the output: only non-thought text reaches the
+/// markdown (and the accuracy heuristic). The exclusion is delegated to the SDK's
+/// `text()` helper, so this pins that delegation.
+#[test]
+fn thought_parts_are_excluded_from_output() {
+    let body = serde_json::json!({
+        "candidates": [{
+            "content": { "parts": [
+                { "thought": true, "text": "chain of thought to hide" },
+                { "text": "# From Flash\n\nVisible thought-free output." }
+            ]},
+            "finishReason": "STOP"
+        }]
+    })
+    .to_string();
+    let (port, _flash_bodies, _pro_bodies) =
+        spawn_gemini_mock(Canned::ok(body), Canned::ok(success_body("unused")));
+    let cfg = gemini_config(port);
+    let md = markitdown::convert_with_config(&fixture_uri("sample.pdf"), &cfg)
+        .expect("gemini convert")
+        .markdown;
+    assert!(
+        md.contains("Visible thought-free output"),
+        "expected visible text, got: {md}"
+    );
+    assert!(
+        !md.contains("chain of thought to hide"),
+        "thought part leaked into output: {md}"
+    );
+}
+
+/// A 200 response with no candidates and a prompt-feedback block reason is a hard
+/// "prompt blocked" error carrying the reason — never a silent fallback to local
+/// extraction.
+#[test]
+fn blocked_prompt_errors_with_reason() {
+    let body = serde_json::json!({
+        "promptFeedback": { "blockReason": "SAFETY" }
+    })
+    .to_string();
+    let (port, _flash_bodies, _pro_bodies) =
+        spawn_gemini_mock(Canned::ok(body), Canned::ok(success_body("unused")));
+    let cfg = gemini_config(port);
+    let err = markitdown::convert_with_config(&fixture_uri("sample.pdf"), &cfg)
+        .expect_err("must error when the prompt is blocked");
+    let msg = err.to_string();
+    assert!(msg.contains("prompt blocked"), "got: {msg}");
+    assert!(msg.contains("SAFETY"), "block reason missing: {msg}");
+    assert!(
+        !msg.contains("Hello PDF from markitdown"),
+        "must not fall back to local extraction: {msg}"
     );
 }
