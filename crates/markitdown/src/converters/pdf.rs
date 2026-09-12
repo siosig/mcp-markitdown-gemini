@@ -3,8 +3,10 @@
 //! Two routes (research.md §5, data-model.md §5):
 //! - No `GeminiConfig` (GEMINI_API_KEY unset): local text extraction via `pdf-extract`.
 //! - With `GeminiConfig`: Gemini flash-lite(thinking low) → accuracy assessment →
-//!   escalate to the same model at thinking high → assessment → error. No fallback
-//!   to local on Gemini failure (FR-006a).
+//!   escalate to the same model at thinking high → assessment → accept-or-error. No
+//!   fallback to local on Gemini failure (FR-006a). "Accept-or-error" because not every
+//!   insufficiency reason means the same thing after escalation has already been tried
+//!   once: see [`crate::gemini::InsufficientReason`] and the escalation-tier match below.
 
 use crate::error::MarkItDownError;
 use crate::gemini::assess::{assess, Accuracy};
@@ -74,6 +76,19 @@ impl PdfConverter {
         ) {
             Accuracy::Sufficient => {
                 tracing::info!(route = "gemini-escalated", model = %cfg.escalation.model, "pdf converted via gemini escalation");
+                Ok(ConversionResult::text(escalated.text.trim().to_string()))
+            }
+            // A low chars-per-KB ratio is not, by itself, reliable evidence of a bad
+            // extraction (see InsufficientReason::LowDensity): image/diagram-heavy PDFs
+            // can legitimately produce sparse text even on a complete, accurate read,
+            // since Gemini reads PDF pages as images natively regardless of thinking
+            // level — there is no separate "OCR mode" a low ratio means was skipped.
+            // Once the escalation tier has already been tried, discarding a complete
+            // (finishReason=STOP) and uncorrupted result over this heuristic alone would
+            // throw away genuine output in exchange for nothing (there is no next tier to
+            // retry with), so accept it as best-effort instead of hard-failing.
+            Accuracy::Insufficient(reason) if !reason.is_reliable_failure() => {
+                tracing::warn!(reason = %reason, model = %cfg.escalation.model, "gemini escalation still low-density; accepting as best-effort");
                 Ok(ConversionResult::text(escalated.text.trim().to_string()))
             }
             Accuracy::Insufficient(reason) => {

@@ -7,4 +7,5 @@ pub mod assess;
 pub mod client;
 pub mod config;
 
+pub use assess::InsufficientReason;
 pub use config::{AccuracyThresholds, GeminiConfig, ModelTier};
