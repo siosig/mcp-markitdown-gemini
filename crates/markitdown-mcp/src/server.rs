@@ -3,7 +3,7 @@
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, Content, Implementation, ServerCapabilities, ServerInfo};
+use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerInfo};
 use rmcp::{schemars, tool, tool_handler, tool_router, ServerHandler};
 use serde::Deserialize;
 
@@ -59,14 +59,14 @@ impl MarkItDownServer {
         tracing::info!(uri = %uri, "convert_to_markdown");
 
         match tokio::task::spawn_blocking(move || markitdown::convert(&uri)).await {
-            Ok(Ok(result)) => CallToolResult::success(vec![Content::text(result.markdown)]),
+            Ok(Ok(result)) => CallToolResult::success(vec![ContentBlock::text(result.markdown)]),
             Ok(Err(err)) => {
                 tracing::warn!(error = %err, "conversion failed");
-                CallToolResult::error(vec![Content::text(format!("Error: {err}"))])
+                CallToolResult::error(vec![ContentBlock::text(format!("Error: {err}"))])
             }
             Err(join_err) => {
                 tracing::error!(error = %join_err, "conversion task panicked");
-                CallToolResult::error(vec![Content::text(format!(
+                CallToolResult::error(vec![ContentBlock::text(format!(
                     "Error: internal task failure: {join_err}"
                 ))])
             }

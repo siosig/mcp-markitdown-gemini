@@ -65,12 +65,12 @@ fn parse_slide(xml: &[u8]) -> Result<String, MarkItDownError> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => match local_name(e.name().as_ref()) {
-                b"tbl" => {
+                "tbl" => {
                     in_table = true;
                     table_rows.clear();
                 }
-                b"tr" => cur_row.clear(),
-                b"tc" => cell_text.clear(),
+                "tr" => cur_row.clear(),
+                "tc" => cell_text.clear(),
                 _ => {}
             },
             Ok(Event::Text(t)) => {
@@ -82,15 +82,15 @@ fn parse_slide(xml: &[u8]) -> Result<String, MarkItDownError> {
                 }
             }
             Ok(Event::End(e)) => match local_name(e.name().as_ref()) {
-                b"tc" => cur_row.push(cell_text.trim().to_string()),
-                b"tr" => table_rows.push(std::mem::take(&mut cur_row)),
-                b"tbl" => {
+                "tc" => cur_row.push(cell_text.trim().to_string()),
+                "tr" => table_rows.push(std::mem::take(&mut cur_row)),
+                "tbl" => {
                     in_table = false;
                     out.push_str(&markdown_table(&table_rows));
                     out.push('\n');
                 }
                 // Finalize the text line at the end of a:p (paragraph). Text inside tables is handled on the cell side.
-                b"p" => {
+                "p" => {
                     if !in_table {
                         let line = para.trim();
                         if !line.is_empty() {

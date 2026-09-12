@@ -42,13 +42,17 @@ pub fn decode_text(bytes: &[u8], charset: Option<&str>) -> String {
 }
 
 /// Decodes a quick-xml Text event and returns a string with XML entities unescaped.
+///
+/// quick-xml >= 0.42 validates UTF-8 up front and stores event content as
+/// `&str` directly (no separate decode step, no encoding-error case here —
+/// that already happened, if at all, while quick-xml built this event).
+/// On an unescape failure, the original (still-escaped) text is returned as-is,
+/// matching the pre-0.42 behavior.
 pub fn decode_xml_text(t: &quick_xml::events::BytesText) -> String {
-    match t.decode() {
-        Ok(cow) => quick_xml::escape::unescape(&cow)
-            .map(|u| u.into_owned())
-            .unwrap_or_else(|_| cow.into_owned()),
-        Err(_) => String::new(),
-    }
+    let text: &str = t.as_ref();
+    quick_xml::escape::unescape(text)
+        .map(|u| u.into_owned())
+        .unwrap_or_else(|_| text.to_string())
 }
 
 /// Determines whether the leading sample looks like text (no NUL bytes, high ratio of printable characters).
@@ -72,8 +76,8 @@ pub fn looks_like_text(bytes: &[u8]) -> bool {
 }
 
 /// Extracts the local name (`p`) from an XML qualified name (`w:p`, etc.).
-pub fn local_name(qname: &[u8]) -> &[u8] {
-    match qname.iter().position(|&b| b == b':') {
+pub fn local_name(qname: &str) -> &str {
+    match qname.find(':') {
         Some(i) => &qname[i + 1..],
         None => qname,
     }
