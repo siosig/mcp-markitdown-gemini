@@ -55,15 +55,26 @@ The quickest way to install is the bundled script. Clone the repo, `cd` into it,
 ./install_claude_plugin.sh -d       # uninstall the plugin + remove the installed binary
 ```
 
-Requirements: `cargo` and the `claude` CLI on `PATH` (`node` is used to repoint the plugin's MCP server at the local binary). The script builds the release binary, installs it into `~/.local/bin`, registers a local marketplace (`markitdown-gemini`), installs the `markitdown-gemini` plugin, and points the plugin's MCP server at the installed binary. Restart Claude Code afterward and verify with `claude plugin list`.
+Requirements: `cargo` and the `claude` CLI on `PATH` (`node` is used to repoint the plugin's MCP server at the local binary and to grant tool permissions). The script builds the release binary, installs it into Rust's user-scope bin directory (see below), registers a local marketplace (`markitdown-gemini`), installs the `markitdown-gemini` plugin, points the plugin's MCP server at the installed binary, and grants this plugin's MCP server permission to run all its tools without a per-call approval prompt (covers future tools too, with no reinstall needed). Restart Claude Code afterward and verify with `claude plugin list`.
 
-Overrides via environment variables:
+The install directory is resolved in the same order `cargo install` itself would, first match wins:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MARKITDOWN_BIN_DIR` | `~/.local/bin` | Directory the `markitdown-mcp` binary is installed into |
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | `$MARKITDOWN_BIN_DIR` (this installer's own override) | — |
+| 2 | `$CARGO_INSTALL_ROOT/bin` | — |
+| 3 | `$CARGO_HOME/bin` | — |
+| 4 | default | `~/.cargo/bin` |
+
+A binary left by an installer version predating this scheme (`~/.local/bin`) is removed automatically on both install and uninstall.
 
 To enable Gemini PDF conversion, export `GEMINI_API_KEY` in the environment where Claude Code launches the server (see [PDF Conversion via Gemini](#pdf-conversion-via-gemini-optional)).
+
+If building fails while fetching the `gemini-genai` dependency with `git@github.com: Permission denied (publickey)`, your global git config is rewriting anonymous HTTPS GitHub URLs to SSH and the key behind that rewrite can't reach `github.com/siosig`. Add a longer, self-mapping override (git uses the longest matching prefix) rather than removing the original rule:
+
+```bash
+git config --global url."https://github.com/siosig/".insteadOf "https://github.com/siosig/"
+```
 
 ## Build
 

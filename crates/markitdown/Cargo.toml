@@ -11,34 +11,35 @@ description = "Convert documents (PDF, Office, HTML, etc.) at a URI to Markdown.
 workspace = true
 
 [dependencies]
-calamine = "0.35.0"
+calamine = "0.36.1"
 chardetng = "1.0.0"
 csv = "1.4.0"
 data-url = "0.3.2"
-encoding_rs = "0.8.35"
+encoding_rs = "0.8.41"
 epub = "2.1.5"
 # Gemini SDK for the PDF conversion route (Rust port of google-genai, same author
-# as this repository). `default-features = false` drops the `live` (WebSocket)
-# API, and deliberately does NOT enable `rustls-tls`: that feature requires
-# `reqwest/webpki-roots`, which reqwest removed in 0.13.4 (the version this
-# workspace resolves). TLS still works because Cargo unifies features across the
-# graph — the `reqwest` entry below enables `rustls` (platform-verifier roots)
-# on the same reqwest build the SDK uses. If the `reqwest` dependency is ever
-# removed, the SDK loses HTTPS at runtime (builds fine, fails on request), so
-# keep these two entries in sync. `blocking` provides the sync client; it must
-# only run on a thread with no tokio context (see src/gemini/client.rs).
-gemini-genai = { version = "0.2", default-features = false, features = ["blocking"] }
-htmd = "0.5.4"
-infer = "0.19.0"
+# as this repository). Referenced by Git + tag rather than crates.io so SDK
+# fixes land here without waiting on a crates.io release (005-genai-git-deps-installer).
+# To bump: land the change in siosig/genai-rs, tag it there, then update `tag` below.
+# `default-features = false` drops the `live` (WebSocket) API. `rustls-tls` is
+# enabled explicitly (fixed in genai-rs v0.2.2 to reference reqwest's actual
+# `rustls` feature instead of the removed `webpki-roots` one), so TLS is
+# supplied by the SDK's own feature declaration — it no longer depends on this
+# crate happening to also enable `reqwest/rustls` for the same reqwest build.
+# `blocking` provides the sync client; it must only run on a thread with no
+# tokio context (see src/gemini/client.rs).
+gemini-genai = { git = "https://github.com/siosig/genai-rs", tag = "v0.2.2", default-features = false, features = ["blocking", "rustls-tls"] }
+htmd = "0.5.5"
+infer = "0.22.0"
 kamadak-exif = "0.6.1"
 pdf-extract = "0.12.0"
-quick-xml = "0.40.1"
-reqwest = { version = "0.13.3", default-features = false, features = ["blocking", "rustls", "gzip"] }
+quick-xml = "0.42.0"
+reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "rustls", "gzip"] }
 scraper = "0.27.0"
-serde_json = "1.0.150"
-thiserror = "2.0.18"
+serde_json = "1.0.151"
+thiserror = "2.0.20"
 tracing = "0.1.44"
 url = "2.5.8"
-zip = "7.2.0"
+zip = "8.6.0"
 
 [dev-dependencies]

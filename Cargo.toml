@@ -5,7 +5,10 @@ members = ["crates/markitdown", "crates/markitdown-mcp"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-# 1.88 is the MSRV of gemini-genai 0.2 (the Gemini SDK used for PDF conversion).
+# 1.88, the highest MSRV among direct dependencies: gemini-genai 0.2 (Gemini
+# SDK), rmcp 3.3 (MCP server), zip 8.6, and calamine 0.36. quick-xml 0.42
+# only needs 1.86. Re-check this set (crates.io per-version `rust_version`)
+# whenever a dependency is bumped.
 rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/siosig/mcp-markitdown-gemini"

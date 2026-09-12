@@ -57,15 +57,26 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 ./install_claude_plugin.sh -d       # プラグインをアンインストール + 導入バイナリを削除
 ```
 
-要件: `cargo` と `claude` CLI が `PATH` にあること（プラグインの MCP サーバーをローカルバイナリへ向け直すために `node` を使用）。スクリプトはリリースバイナリをビルドして `~/.local/bin` に導入し、ローカル marketplace（`markitdown-gemini`）を登録、`markitdown-gemini` プラグインをインストールし、プラグインの MCP サーバーを導入バイナリへ向けます。実行後は Claude Code を再起動し、`claude plugin list` で確認してください。
+要件: `cargo` と `claude` CLI が `PATH` にあること（プラグインの MCP サーバーをローカルバイナリへ向け直す・ツール許可を付与するために `node` を使用）。スクリプトはリリースバイナリをビルドして Rust のユーザースコープ標準バイナリディレクトリ（後述）に導入し、ローカル marketplace（`markitdown-gemini`）を登録、`markitdown-gemini` プラグインをインストールし、プラグインの MCP サーバーを導入バイナリへ向け、本プラグインの MCP サーバーが提供する全ツールを承認プロンプトなしで実行できる許可を付与します（将来ツールが増えても再インストール不要で対象に含まれます）。実行後は Claude Code を再起動し、`claude plugin list` で確認してください。
 
-環境変数による上書き:
+導入先ディレクトリは `cargo install` 自身と同じ優先順で決定されます（先に一致したものが採用）:
 
-| 変数 | 既定値 | 説明 |
-|------|--------|------|
-| `MARKITDOWN_BIN_DIR` | `~/.local/bin` | `markitdown-mcp` バイナリの導入先ディレクトリ |
+| 優先度 | 由来 | 例 |
+|--------|------|-----|
+| 1 | `$MARKITDOWN_BIN_DIR`（本インストーラ独自の上書き） | — |
+| 2 | `$CARGO_INSTALL_ROOT/bin` | — |
+| 3 | `$CARGO_HOME/bin` | — |
+| 4 | 既定値 | `~/.cargo/bin` |
+
+この方式より前のインストーラ版が残した `~/.local/bin` のバイナリは、インストール・アンインストールの両方で自動的に削除されます。
 
 Gemini による PDF 変換を有効にするには、Claude Code がサーバーを起動する環境で `GEMINI_API_KEY` を export してください（[Gemini による PDF 変換](#gemini-による-pdf-変換任意)参照）。
+
+`gemini-genai` 依存の取得中に `git@github.com: Permission denied (publickey)` でビルドが失敗する場合、グローバルな git 設定が匿名 HTTPS の GitHub URL を SSH へ書き換えており、その書き換え先の鍵が `github.com/siosig` に届いていません。元のルールを削除するのではなく、より長い自己マッピングを追加してください（git は最長一致の接頭辞を採用します）:
+
+```bash
+git config --global url."https://github.com/siosig/".insteadOf "https://github.com/siosig/"
+```
 
 ## ビルド
 

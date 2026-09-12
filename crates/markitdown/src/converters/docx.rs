@@ -53,22 +53,20 @@ impl Converter for DocxConverter {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => match local_name(e.name().as_ref()) {
-                    b"tbl" => {
+                    "tbl" => {
                         in_table = true;
                         table_rows.clear();
                     }
-                    b"tr" => cur_row.clear(),
-                    b"tc" => cell_text.clear(),
-                    b"numPr" => para.is_list = true,
+                    "tr" => cur_row.clear(),
+                    "tc" => cell_text.clear(),
+                    "numPr" => para.is_list = true,
                     _ => {}
                 },
                 Ok(Event::Empty(e)) => {
-                    if local_name(e.name().as_ref()) == b"pStyle" {
+                    if local_name(e.name().as_ref()) == "pStyle" {
                         for attr in e.attributes().flatten() {
-                            if local_name(attr.key.as_ref()) == b"val" {
-                                // styleId is an ASCII identifier, so it is safe to recover it from raw bytes.
-                                para.style =
-                                    Some(String::from_utf8_lossy(&attr.value).into_owned());
+                            if local_name(attr.key.as_ref()) == "val" {
+                                para.style = Some(attr.value.into_owned());
                             }
                         }
                     }
@@ -82,14 +80,14 @@ impl Converter for DocxConverter {
                     }
                 }
                 Ok(Event::End(e)) => match local_name(e.name().as_ref()) {
-                    b"tc" => cur_row.push(cell_text.trim().to_string()),
-                    b"tr" => table_rows.push(std::mem::take(&mut cur_row)),
-                    b"tbl" => {
+                    "tc" => cur_row.push(cell_text.trim().to_string()),
+                    "tr" => table_rows.push(std::mem::take(&mut cur_row)),
+                    "tbl" => {
                         in_table = false;
                         markdown.push_str(&markdown_table(&table_rows));
                         markdown.push('\n');
                     }
-                    b"p" if !in_table => {
+                    "p" if !in_table => {
                         emit_paragraph(&mut markdown, &para);
                         para = ParaState::default();
                     }
