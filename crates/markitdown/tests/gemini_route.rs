@@ -419,6 +419,28 @@ fn escalation_still_insufficient_errors() {
     );
 }
 
+/// A scanned/diagram-heavy PDF can legitimately produce sparse text on a complete,
+/// accurate read: a large source (dominated by embedded raster images) with only a
+/// caption or two per page. If that low chars-per-KB ratio persists after escalation
+/// (finishReason=STOP, non-empty, non-garbled both times), the escalated text must be
+/// returned as best-effort output — not discarded as a hard failure, since there is no
+/// further tier to retry with and the result is genuine, uncorrupted Gemini output.
+#[test]
+fn escalation_low_density_only_returns_best_effort_text() {
+    let sparse = Canned::ok(success_body("薄い")); // clean, non-empty, non-garbled, but only 2 chars
+    let (port, _flash_bodies, _pro_bodies) = spawn_gemini_mock(sparse.clone(), sparse);
+    let mut cfg = gemini_config(port);
+    if let Some(g) = cfg.gemini.as_mut() {
+        // The fixture PDF is far smaller than the default 50 KB floor; lower it to 0 so
+        // the density check applies regardless of fixture size.
+        g.thresholds.density_apply_min_bytes = 0;
+    }
+    let md = markitdown::convert_with_config(&fixture_uri("sample.pdf"), &cfg)
+        .expect("low density alone must not hard-fail after escalation")
+        .markdown;
+    assert_eq!(md, "薄い");
+}
+
 /// Thought parts must never leak into the output: only non-thought text reaches the
 /// markdown (and the accuracy heuristic). The exclusion is delegated to the SDK's
 /// `text()` helper, so this pins that delegation.
