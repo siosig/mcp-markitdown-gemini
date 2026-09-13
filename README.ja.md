@@ -49,30 +49,39 @@ PDF / Word (DOCX) / Excel (XLSX, XLS) / PowerPoint (PPTX) / HTML / CSV / JSON / 
 
 ## Claude Code へのインストール
 
-同梱スクリプトを使うのが最も簡単です。リポジトリを clone し、`cd` してから実行します:
+### Linux / macOS
+
+リポジトリを clone し、`cd` してから実行します:
 
 ```bash
-./install_claude_plugin.sh          # ビルド + Claude Code プラグインとしてインストール
-./install_claude_plugin.sh -n       # 再ビルドせずインストール（target/release/ を再利用）
-./install_claude_plugin.sh -d       # プラグインをアンインストール + 導入バイナリを削除
+./install_claude_plugin.sh              # インストール（リリースのダウンロード、取得できなければソースビルドへフォールバック）
+./install_claude_plugin.sh -s           # ソースビルドを強制（ダウンロードを試みない）
+./install_claude_plugin.sh -d           # プラグインをアンインストール + 導入バイナリを削除
 ```
 
-要件: `cargo` と `claude` CLI が `PATH` にあること（プラグインの MCP サーバーをローカルバイナリへ向け直す・ツール許可を付与するために `node` を使用）。スクリプトはリリースバイナリをビルドして Rust のユーザースコープ標準バイナリディレクトリ（後述）に導入し、ローカル marketplace（`markitdown-gemini`）を登録、`markitdown-gemini` プラグインをインストールし、プラグインの MCP サーバーを導入バイナリへ向け、本プラグインの MCP サーバーが提供する全ツールを承認プロンプトなしで実行できる許可を付与します（将来ツールが増えても再インストール不要で対象に含まれます）。実行後は Claude Code を再起動し、`claude plugin list` で確認してください。
+要件: `claude` CLI が `PATH` にあること。リリースアーカイブの取得に `curl` と `tar` を使用し、ソースビルドのフォールバック時のみ `cargo` が必要です。許可設定の投入には `node` を使用します。
 
-導入先ディレクトリは `cargo install` 自身と同じ優先順で決定されます（先に一致したものが採用）:
+インストーラはまず、このプロジェクトの [GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases) から、実行環境（Linux x86_64/aarch64、macOS aarch64）向けのビルド済みバイナリのダウンロードを試みます。該当するリリース資産が取得できない場合は `cargo build --release` にフォールバックします。どちらの経路でも、バイナリはこのチェックアウト内の `plugins/markitdown-gemini/bin/markitdown-mcp.exe` に配置され（`.exe` 拡張子は全 OS で共通。理由は後述）、ローカル marketplace（`markitdown-gemini`）を登録、`markitdown-gemini` プラグインをインストールし、本プラグインの MCP サーバーが提供する全ツールを承認プロンプトなしで実行できる許可を付与します（将来ツールが増えても再インストール不要で対象に含まれます）。この方式より前のインストーラ版が残したバイナリ（Rust のユーザースコープ標準バイナリディレクトリ、または `~/.local/bin`）は、インストール・アンインストールの両方で自動的に削除されます。実行後は Claude Code を再起動し、`claude mcp list` で確認してください。
 
-| 優先度 | 由来 | 例 |
-|--------|------|-----|
-| 1 | `$MARKITDOWN_BIN_DIR`（本インストーラ独自の上書き） | — |
-| 2 | `$CARGO_INSTALL_ROOT/bin` | — |
-| 3 | `$CARGO_HOME/bin` | — |
-| 4 | 既定値 | `~/.cargo/bin` |
+### Windows
 
-この方式より前のインストーラ版が残した `~/.local/bin` のバイナリは、インストール・アンインストールの両方で自動的に削除されます。
+[PowerShell 7 以降](https://learn.microsoft.com/ja-jp/powershell/scripting/install/installing-powershell)（`winget install --id Microsoft.PowerShell`）と、`claude` CLI が `PATH` にあることが必要です。Rust ツールチェーンは不要です — Windows 用インストーラはソースからビルドすることが一切なく、[GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases) からビルド済みの `x86_64` バイナリをダウンロードするだけです。
 
-Gemini による PDF 変換を有効にするには、Claude Code がサーバーを起動する環境で `GEMINI_API_KEY` を export してください（[Gemini による PDF 変換](#gemini-による-pdf-変換任意)参照）。
+```powershell
+git clone https://github.com/siosig/mcp-markitdown-gemini
+cd mcp-markitdown-gemini
+.\install_claude_plugin.ps1              # インストール
+.\install_claude_plugin.ps1 -Uninstall   # アンインストール
+.\install_claude_plugin.ps1 -Help        # 使い方
+```
 
-`gemini-genai` 依存の取得中に `git@github.com: Permission denied (publickey)` でビルドが失敗する場合、グローバルな git 設定が匿名 HTTPS の GitHub URL を SSH へ書き換えており、その書き換え先の鍵が `github.com/siosig` に届いていません。元のルールを削除するのではなく、より長い自己マッピングを追加してください（git は最長一致の接頭辞を採用します）:
+実行ポリシーでブロックされた場合は `pwsh -ExecutionPolicy Bypass -File .\install_claude_plugin.ps1` を実行してください。Claude Code が起動中だとバイナリの置き換えに失敗することがあります — その場合は Claude Code を終了してから再実行してください。配置するバイナリは Linux/macOS を含む全 OS で `markitdown-mcp.exe` という名前に統一しています。プラグインの起動設定（`${CLAUDE_PLUGIN_ROOT}/bin/...`）はコマンド文字列を 1 つしか持てず、Windows は拡張子なしの実行ファイルをプラグインローダー経由で起動できないためです。
+
+### 共通
+
+Gemini による PDF 変換を有効にするには、Claude Code がサーバーを起動する環境で `GEMINI_API_KEY` を export してください（[Gemini による PDF 変換](#gemini-による-pdf-変換任意)参照）。これは任意機能で、未設定でもインストーラは動作します。
+
+ソースビルド時、`gemini-genai` 依存の取得中に `git@github.com: Permission denied (publickey)` でビルドが失敗する場合、グローバルな git 設定が匿名 HTTPS の GitHub URL を SSH へ書き換えており、その書き換え先の鍵が `github.com/siosig` に届いていません。元のルールを削除するのではなく、より長い自己マッピングを追加してください（git は最長一致の接頭辞を採用します）:
 
 ```bash
 git config --global url."https://github.com/siosig/".insteadOf "https://github.com/siosig/"
@@ -95,7 +104,7 @@ target/release/markitdown-mcp
 
 ## 手動での MCP クライアント登録（Claude Desktop ほか）
 
-上記のプラグインインストーラーを使わない場合は、バイナリを手動登録します:
+上記のプラグインインストーラーを使わない場合は、バイナリを手動登録します。自分でビルドする（`cargo build --release`。[ビルド](#ビルド)参照）か、[GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases) から取得してください:
 
 ```json
 {

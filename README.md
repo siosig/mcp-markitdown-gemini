@@ -47,30 +47,39 @@ Models and thinking levels are fixed (primary `gemini-flash-lite-latest`/`thinki
 
 ## Install for Claude Code
 
-The quickest way to install is the bundled script. Clone the repo, `cd` into it, then run:
+### Linux / macOS
+
+Clone the repo, `cd` into it, then run:
 
 ```bash
-./install_claude_plugin.sh          # build + install as a Claude Code plugin
-./install_claude_plugin.sh -n       # install without rebuilding (reuse target/release/)
-./install_claude_plugin.sh -d       # uninstall the plugin + remove the installed binary
+./install_claude_plugin.sh              # install (release download, falls back to a source build)
+./install_claude_plugin.sh -s           # force a source build (skip the release download)
+./install_claude_plugin.sh -d           # uninstall the plugin + remove the installed binary
 ```
 
-Requirements: `cargo` and the `claude` CLI on `PATH` (`node` is used to repoint the plugin's MCP server at the local binary and to grant tool permissions). The script builds the release binary, installs it into Rust's user-scope bin directory (see below), registers a local marketplace (`markitdown-gemini`), installs the `markitdown-gemini` plugin, points the plugin's MCP server at the installed binary, and grants this plugin's MCP server permission to run all its tools without a per-call approval prompt (covers future tools too, with no reinstall needed). Restart Claude Code afterward and verify with `claude plugin list`.
+Requirements: the `claude` CLI on `PATH`. `curl` and `tar` are used to fetch the release archive; `cargo` is only needed for the source-build fallback; `node` is used to grant tool permissions.
 
-The install directory is resolved in the same order `cargo install` itself would, first match wins:
+The installer first tries to download a prebuilt binary from this project's [GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases) for your platform (Linux x86_64/aarch64, macOS aarch64). If no matching release asset can be obtained, it falls back to `cargo build --release`. Either way the binary is placed at `plugins/markitdown-gemini/bin/markitdown-mcp.exe` inside this checkout (the `.exe` suffix is kept on every platform — see below), a local marketplace (`markitdown-gemini`) is registered, the `markitdown-gemini` plugin is installed, and this plugin's MCP server is granted permission to run all its tools without a per-call approval prompt (covers future tools too, with no reinstall needed). A binary left by an installer version predating this scheme (Rust's user-scope bin directory, or `~/.local/bin`) is removed automatically on both install and uninstall. Restart Claude Code afterward and verify with `claude mcp list`.
 
-| Priority | Source | Example |
-|----------|--------|---------|
-| 1 | `$MARKITDOWN_BIN_DIR` (this installer's own override) | — |
-| 2 | `$CARGO_INSTALL_ROOT/bin` | — |
-| 3 | `$CARGO_HOME/bin` | — |
-| 4 | default | `~/.cargo/bin` |
+### Windows
 
-A binary left by an installer version predating this scheme (`~/.local/bin`) is removed automatically on both install and uninstall.
+Requires [PowerShell 7 or later](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) (`winget install --id Microsoft.PowerShell`) and the `claude` CLI on `PATH`. No Rust toolchain is needed — the Windows installer never builds from source; it only downloads a prebuilt `x86_64` binary from [GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases).
 
-To enable Gemini PDF conversion, export `GEMINI_API_KEY` in the environment where Claude Code launches the server (see [PDF Conversion via Gemini](#pdf-conversion-via-gemini-optional)).
+```powershell
+git clone https://github.com/siosig/mcp-markitdown-gemini
+cd mcp-markitdown-gemini
+.\install_claude_plugin.ps1              # install
+.\install_claude_plugin.ps1 -Uninstall   # uninstall
+.\install_claude_plugin.ps1 -Help        # usage
+```
 
-If building fails while fetching the `gemini-genai` dependency with `git@github.com: Permission denied (publickey)`, your global git config is rewriting anonymous HTTPS GitHub URLs to SSH and the key behind that rewrite can't reach `github.com/siosig`. Add a longer, self-mapping override (git uses the longest matching prefix) rather than removing the original rule:
+If script execution is blocked by policy, run: `pwsh -ExecutionPolicy Bypass -File .\install_claude_plugin.ps1`. If Claude Code is running, the installer may fail to replace the binary — quit Claude Code and re-run. The placed binary is always named `markitdown-mcp.exe`, even on Linux/macOS, because the plugin's launch configuration (`${CLAUDE_PLUGIN_ROOT}/bin/...`) admits only one command string, and Windows cannot launch an extension-less image through the plugin loader.
+
+### Common
+
+To enable Gemini PDF conversion, export `GEMINI_API_KEY` in the environment where Claude Code launches the server (see [PDF Conversion via Gemini](#pdf-conversion-via-gemini-optional)); it's optional and the installer works without it.
+
+If a source build fails while fetching the `gemini-genai` dependency with `git@github.com: Permission denied (publickey)`, your global git config is rewriting anonymous HTTPS GitHub URLs to SSH and the key behind that rewrite can't reach `github.com/siosig`. Add a longer, self-mapping override (git uses the longest matching prefix) rather than removing the original rule:
 
 ```bash
 git config --global url."https://github.com/siosig/".insteadOf "https://github.com/siosig/"
@@ -93,7 +102,7 @@ The `--http` / `--host` / `--port` options are reserved for future HTTP/SSE tran
 
 ## Manual MCP Client Registration (Claude Desktop, other clients, etc.)
 
-If you are not using the plugin installer above, register the binary manually:
+If you are not using the plugin installer above, register the binary manually — either build it yourself (`cargo build --release`, see [Build](#build)) or download it from [GitHub Releases](https://github.com/siosig/mcp-markitdown-gemini/releases):
 
 ```json
 {

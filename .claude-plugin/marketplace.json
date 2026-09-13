@@ -1,0 +1,13 @@
+{
+  "name": "markitdown-gemini",
+  "owner": {
+    "name": "Daisuke ITO"
+  },
+  "plugins": [
+    {
+      "name": "markitdown-gemini",
+      "source": "./plugins/markitdown-gemini",
+      "description": "mcp-markitdown-gemini: a microsoft/markitdown-mcp-compatible MCP server exposing convert_to_markdown for http/https/file/data URIs. Optional Gemini-based PDF conversion when GEMINI_API_KEY is set. Install with install_claude_plugin.sh (Linux/macOS) or install_claude_plugin.ps1 (Windows)."
+    }
+  ]
+}

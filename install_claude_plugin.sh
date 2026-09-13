@@ -4,77 +4,65 @@ set -euo pipefail
 # Install / uninstall markitdown-mcp (Rust) as a Claude Code plugin.
 #
 # Usage model: clone the repository yourself, `cd` into it, and run this script.
-# It installs FROM the current checkout — it does not clone anything. It builds
-# the release binary, installs it onto PATH, registers the local marketplace,
-# installs the plugin, and points the plugin's MCP server at the local binary.
+# It installs FROM the current checkout — it does not clone anything.
+#
+# Distribution model:
+#   1. Download a pre-built binary from GitHub Releases (siosig/mcp-markitdown-gemini)
+#      that matches this OS/arch.
+#   2. If none is published, or none matches this platform, fall back to building
+#      it from source (cargo build --release --locked -p markitdown-mcp).
+#   3. If neither works, print an actionable error and exit 1.
+#
+# The binary is placed at plugins/markitdown-gemini/bin/markitdown-mcp.exe, INSIDE
+# this checkout — never onto a shared PATH directory. The plugin's .mcp.json
+# launches it via ${CLAUDE_PLUGIN_ROOT}/bin/markitdown-mcp.exe, which Claude Code
+# resolves the same way on every OS, so no PATH setup or plugin-cache rewrite is
+# needed. The .exe suffix is kept on every platform (including Linux/macOS): Claude
+# Code's plugin loader only launches this file by that exact name, and .mcp.json
+# admits one command string with no way to branch per OS. The suffix has no effect
+# on POSIX, where the kernel reads the file's header, not its name.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || pwd)"
 MARKETPLACE_NAME="markitdown-gemini"
 PLUGIN_NAME="markitdown-gemini"
 
-# Binary entrypoint shipped by the Rust workspace (the stdio MCP server).
-BINS=(markitdown-mcp)
-
-# Binary from an older installer version that used to live in ~/.local/bin
-# (before 005-genai-git-deps-installer moved the default to the Rust
-# user-scope bin dir). Cleaned up on both install and uninstall so a stale
-# copy never shadows the current one on PATH.
-LEGACY_BIN_DIR="${HOME}/.local/bin"
-
-# Resolve the install directory in the same order `cargo install` would: an
-# explicit override for this tool first, then cargo's own install root, then
-# cargo's home, then its hardcoded default. Sets BIN_DIR and BIN_DIR_SOURCE;
-# the latter is logged below so it's never a mystery where the binary landed
-# (FR-012 / FR-012a).
-if [[ -n "${MARKITDOWN_BIN_DIR:-}" ]]; then
-  BIN_DIR="${MARKITDOWN_BIN_DIR}"
-  BIN_DIR_SOURCE="MARKITDOWN_BIN_DIR"
-elif [[ -n "${CARGO_INSTALL_ROOT:-}" ]]; then
-  BIN_DIR="${CARGO_INSTALL_ROOT}/bin"
-  BIN_DIR_SOURCE="CARGO_INSTALL_ROOT"
-elif [[ -n "${CARGO_HOME:-}" ]]; then
-  BIN_DIR="${CARGO_HOME}/bin"
-  BIN_DIR_SOURCE="CARGO_HOME"
-else
-  BIN_DIR="${HOME}/.cargo/bin"
-  BIN_DIR_SOURCE="default (~/.cargo/bin)"
-fi
-
-# cargo is usually in ~/.cargo/bin, which non-interactive shells may not have on PATH.
-export PATH="${HOME}/.cargo/bin:${PATH}"
+REPO="siosig/mcp-markitdown-gemini"
+BINARY="markitdown-mcp"
+BIN_FILE="markitdown-mcp.exe"
+BIN_DIR="${SCRIPT_DIR}/plugins/markitdown-gemini/bin"
 
 usage() {
   cat >&2 << EOF
-Usage: ${0##*/} [-d|--uninstall] [-n|--no-build] [-h|--help]
+Usage: ${0##*/} [-s|--from-source] [-d|--uninstall] [-h|--help]
 
   Clone the repo yourself, cd into it, then run this script.
 
-  (no flag)        Install the markitdown-gemini plugin from this checkout:
-                     • build the release binary (cargo build --release -p markitdown-mcp)
-                     • install it into the Rust user-scope bin dir (see below)
-                     • register the '${MARKETPLACE_NAME}' marketplace + install the plugin
-                     • point the installed plugin's MCP server at the local binary
-                     • grant this plugin's MCP server all-tools permission
-  -n, --no-build   Skip 'cargo build --release' and use the binary already in
-                     target/release/ (useful when you already built manually).
-  -d, --uninstall  Remove what the installer added (this repo folder is left untouched):
-                     • uninstall the '${PLUGIN_NAME}' plugin
-                     • remove the '${MARKETPLACE_NAME}' marketplace entry
-                     • remove the installed binary (current and legacy locations)
-                     • revoke the granted permission
-  -h, --help       Show this help.
-
-Install directory (first match wins):
-  1. \$MARKITDOWN_BIN_DIR       (explicit override for this installer)
-  2. \$CARGO_INSTALL_ROOT/bin   (cargo's own install-root override)
-  3. \$CARGO_HOME/bin           (cargo's home directory)
-  4. \${HOME}/.cargo/bin         (Rust's default user-scope bin dir)
-Currently resolves to: ${BIN_DIR} (via ${BIN_DIR_SOURCE})
+  (no flag)              Install the markitdown-gemini plugin from this checkout:
+                           • acquire markitdown-mcp for this OS/arch: download a
+                             GitHub Releases asset first, and if none is published
+                             or none matches this platform, build it from source
+                             (cargo build --release --locked -p markitdown-mcp)
+                           • place it at plugins/markitdown-gemini/bin/${BIN_FILE}
+                           • verify the binary runs (--version) before registering
+                             anything
+                           • remove any binary left by an older installer version
+                           • register the '${MARKETPLACE_NAME}' marketplace + install the plugin
+                           • grant this plugin's MCP server all-tools permission
+  -s, --from-source     Skip the GitHub Releases download; build from source directly
+                           (cargo build --release --locked -p markitdown-mcp).
+  -d, --uninstall        Remove what the installer added (this repo folder is left untouched):
+                           • uninstall the '${PLUGIN_NAME}' plugin
+                           • remove the '${MARKETPLACE_NAME}' marketplace entry
+                           • remove plugins/markitdown-gemini/bin/
+                           • revoke the granted permission
+                           • remove any binary left by an older installer version
+  -h, --help             Show this help.
 
 Optional: export GEMINI_API_KEY before launching Claude Code to enable
 Gemini-based PDF conversion (the MCP server inherits Claude Code's environment).
+Without it, PDF conversion falls back to local extraction.
 
-Troubleshooting: if building fails with
+Troubleshooting (source build only): if building fails with
   "git@github.com: Permission denied (publickey)"
 while fetching the gemini-genai dependency, your global git config is
 rewriting anonymous HTTPS GitHub URLs to SSH (an "insteadOf" rule) and the
@@ -86,11 +74,11 @@ EOF
 }
 
 MODE="install"
-BUILD=true
+FROM_SOURCE=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -s|--from-source) FROM_SOURCE=true ;;
     -d|--uninstall|--delete) MODE="uninstall" ;;
-    -n|--no-build) BUILD=false ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -104,32 +92,6 @@ _require() {
     exit 1
   fi
   echo "✓ $1: $(command -v "$1")"
-}
-
-# Patch the *installed* plugin's plugin.json so the MCP server runs the local
-# binary by absolute path (survives a `cargo clean` of this checkout). Idempotent;
-# only touches the installed plugin cache, never the tracked source.
-_point_plugin_at_binary() {
-  local bin="$1"
-  local db="${HOME}/.claude/plugins/installed_plugins.json"
-  command -v node &>/dev/null || { echo "⚠ node missing — cannot repoint plugin MCP (skip; relies on PATH)"; return 0; }
-  [[ -f "$db" ]] || { echo "⚠ ${db} absent — cannot repoint plugin MCP (skip; relies on PATH)"; return 0; }
-  if node -e '
-    const fs = require("fs");
-    const [dbPath, pluginKey, serverName, binPath] = process.argv.slice(1);
-    const db = JSON.parse(fs.readFileSync(dbPath, "utf8"));
-    const entry = ((db.plugins && db.plugins[pluginKey]) || [])[0];
-    if (!entry || !entry.installPath) { console.error("no installPath for " + pluginKey); process.exit(1); }
-    const pj = entry.installPath + "/.claude-plugin/plugin.json";
-    const p = JSON.parse(fs.readFileSync(pj, "utf8"));
-    p.mcpServers = p.mcpServers || {};
-    p.mcpServers[serverName] = { command: binPath, args: [] };
-    fs.writeFileSync(pj, JSON.stringify(p, null, 2) + "\n");
-  ' "$db" "${PLUGIN_NAME}@${MARKETPLACE_NAME}" "${PLUGIN_NAME}" "$bin"; then
-    echo "✓ plugin MCP repointed to ${bin}"
-  else
-    echo "⚠ could not repoint plugin MCP — it will rely on '${BINS[0]}' being on PATH"
-  fi
 }
 
 # Server-scoped permission rule granted during install: matches ANY tool this
@@ -208,24 +170,179 @@ _revoke_permissions() {
   ' "$settings" "${TOOL_PERMISSIONS[@]}" "${LEGACY_TOOL_PERMISSIONS[@]}"
 }
 
-# Remove any binary this installer left in the pre-005 default location
-# (~/.local/bin), so a stale copy never shadows the current one on PATH.
-# Skipped if that legacy path happens to BE the current install dir (e.g.
-# MARKITDOWN_BIN_DIR=~/.local/bin) — never delete what we just installed.
+# Directory an installer version before 007-windows-installer (the 005-era
+# cargo-install-style placement) may have put the binary in. Resolved with the
+# same precedence 005 used to pick its *install* directory, but here only to
+# find what to clean up — it is never where THIS installer places the binary
+# (that is always BIN_DIR, inside the plugin checkout).
+_legacy_bin_dir() {
+  if [[ -n "${MARKITDOWN_BIN_DIR:-}" ]]; then
+    printf '%s' "${MARKITDOWN_BIN_DIR}"
+  elif [[ -n "${CARGO_INSTALL_ROOT:-}" ]]; then
+    printf '%s' "${CARGO_INSTALL_ROOT}/bin"
+  elif [[ -n "${CARGO_HOME:-}" ]]; then
+    printf '%s' "${CARGO_HOME}/bin"
+  else
+    printf '%s' "${HOME}/.cargo/bin"
+  fi
+}
+
+# Remove binaries left by installer versions before 007-windows-installer: the
+# 005-era cargo-install-style location (_legacy_bin_dir) and the pre-005
+# default (~/.local/bin). Never touches BIN_DIR, this installer's own
+# placement inside the plugin.
 _remove_legacy_binaries() {
-  if [[ "${LEGACY_BIN_DIR}" == "${BIN_DIR}" ]]; then
-    return 0
+  local legacy_dir
+  legacy_dir="$(_legacy_bin_dir)"
+  if [[ -f "${legacy_dir}/${BINARY}" ]]; then
+    rm -f "${legacy_dir}/${BINARY}"
+    echo "✓ removed legacy binary: ${legacy_dir}/${BINARY}"
   fi
-  local removed=0
-  for b in "${BINS[@]}"; do
-    if [[ -f "${LEGACY_BIN_DIR}/${b}" ]]; then
-      rm -f "${LEGACY_BIN_DIR}/${b}"
-      removed=$((removed + 1))
+  if [[ -f "${HOME}/.local/bin/${BINARY}" ]]; then
+    rm -f "${HOME}/.local/bin/${BINARY}"
+    echo "✓ removed legacy binary: ${HOME}/.local/bin/${BINARY}"
+  fi
+  return 0
+}
+
+# Print the release asset name for this platform (contracts/release-assets.md's
+# platform table) on stdout, or print a reason to stderr and return 1 if this
+# OS/arch has no published asset.
+_resolve_asset() {
+  local os arch
+  case "$(uname -s)" in
+    Linux*)  os="linux" ;;
+    Darwin*) os="darwin" ;;
+    *) echo "  (unsupported OS: $(uname -s))" >&2; return 1 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64)  arch="x86_64" ;;
+    arm64|aarch64) arch="aarch64" ;;
+    *) echo "  (unsupported architecture: $(uname -m))" >&2; return 1 ;;
+  esac
+  case "${os}-${arch}" in
+    linux-x86_64|linux-aarch64|darwin-aarch64)
+      printf '%s' "${BINARY}-${os}-${arch}.tar.gz"
+      ;;
+    *)
+      echo "  (no release asset published for ${os}-${arch})" >&2
+      return 1
+      ;;
+  esac
+}
+
+# Resolve a GitHub token for Authorization headers. The repository is PUBLIC, so
+# this is optional (it only raises the API rate limit) — no `gh` dependency.
+_github_token() {
+  if [[ -n "${GH_TOKEN:-}" ]];     then printf '%s' "${GH_TOKEN}";     return 0; fi
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then printf '%s' "${GITHUB_TOKEN}"; return 0; fi
+  return 1
+}
+
+# Download the release asset for this platform and place it at BIN_DIR/BIN_FILE.
+# Sets ACQUIRED_FROM on success. Returns 1 (with a reason on stderr) on any
+# failure, so the caller can fall back to build_from_source.
+download_release() {
+  local asset
+  asset="$(_resolve_asset)" || return 1
+
+  local tmp
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmp}'" RETURN
+
+  local -a auth=()
+  local tok
+  if tok="$(_github_token)"; then auth=(-H "Authorization: Bearer ${tok}"); fi
+
+  echo "→ checking for a published release (${REPO})"
+  local http_code
+  http_code="$(curl -sS "${auth[@]}" \
+    -H "Accept: application/vnd.github+json" \
+    -o "${tmp}/release.json" -w '%{http_code}' \
+    "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null)" || http_code="000"
+
+  if [[ "${http_code}" != "200" ]]; then
+    if [[ "${http_code}" == "404" ]]; then
+      echo "  (no published release for ${REPO})" >&2
+    else
+      echo "  (could not reach api.github.com — HTTP ${http_code})" >&2
     fi
-  done
-  if [[ "${removed}" -gt 0 ]]; then
-    echo "✓ removed ${removed} legacy binary(ies) from ${LEGACY_BIN_DIR}"
+    return 1
   fi
+
+  local tag
+  tag="$(grep -m1 '"tag_name"' "${tmp}/release.json" | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
+  if [[ -z "${tag}" ]]; then
+    echo "  (unexpected response shape from api.github.com)" >&2
+    return 1
+  fi
+
+  echo "→ downloading ${asset} (${tag})"
+  if ! curl -fsSL --retry 3 "${auth[@]}" \
+    -o "${tmp}/${asset}" \
+    "https://github.com/${REPO}/releases/download/${tag}/${asset}"; then
+    echo "  (release ${tag} has no asset ${asset})" >&2
+    return 1
+  fi
+
+  tar xzf "${tmp}/${asset}" -C "${tmp}" || return 1
+  if [[ ! -f "${tmp}/${BINARY}" ]]; then
+    echo "  (archive ${asset} did not contain ${BINARY})" >&2
+    return 1
+  fi
+
+  mkdir -p "${BIN_DIR}"
+  install -m 0755 "${tmp}/${BINARY}" "${BIN_DIR}/${BIN_FILE}"
+  ACQUIRED_FROM="release ${tag}"
+}
+
+# Build markitdown-mcp from this checkout and place it at BIN_DIR/BIN_FILE.
+# Sets ACQUIRED_FROM on success. Returns 1 on any failure.
+build_from_source() {
+  [[ -f "${SCRIPT_DIR}/Cargo.toml" ]] || return 1
+  # rustup installs cargo to ~/.cargo/bin but does not always export it onto PATH
+  # (e.g. non-login shells that never source ~/.cargo/env). Locate it ourselves.
+  if ! command -v cargo &>/dev/null; then
+    if [[ -r "${CARGO_HOME:-${HOME}/.cargo}/env" ]]; then
+      # shellcheck disable=SC1091
+      . "${CARGO_HOME:-${HOME}/.cargo}/env"
+    fi
+    case ":${PATH}:" in
+      *":${HOME}/.cargo/bin:"*) ;;
+      *) PATH="${HOME}/.cargo/bin:${PATH}" ;;
+    esac
+  fi
+  command -v cargo &>/dev/null || return 1
+  echo "✓ cargo: $(command -v cargo)"
+  echo "→ building ${BINARY} from source (cargo build --release --locked -p markitdown-mcp)"
+  ( cd "${SCRIPT_DIR}" && cargo build --release --locked -p markitdown-mcp ) || return 1
+  mkdir -p "${BIN_DIR}"
+  install -m 0755 "${SCRIPT_DIR}/target/release/${BINARY}" "${BIN_DIR}/${BIN_FILE}"
+  ACQUIRED_FROM="source build"
+}
+
+# Acquire the binary: release download first (unless -s/--from-source), then a
+# source build fallback. Exits 1 with actionable next steps if both fail.
+_acquire() {
+  echo "→ acquiring the ${BINARY} binary"
+  local ok=false
+  if [[ "${FROM_SOURCE}" == "true" ]]; then
+    build_from_source && ok=true
+  else
+    if download_release; then
+      ok=true
+    elif build_from_source; then
+      ok=true
+    fi
+  fi
+  if [[ "${ok}" != "true" ]]; then
+    echo "ERROR: could not obtain ${BINARY}." >&2
+    echo "  Check your network connection and https://github.com/${REPO}/releases." >&2
+    echo "  Or install Rust and re-run: https://rustup.rs" >&2
+    exit 1
+  fi
+  echo "✓ acquired ${BINARY} (${ACQUIRED_FROM}) → ${BIN_DIR}/${BIN_FILE}"
 }
 
 _uninstall() {
@@ -246,14 +363,15 @@ _uninstall() {
     echo "✓ marketplace '${MARKETPLACE_NAME}': not registered (skip)"
   fi
 
-  local removed=0
-  for b in "${BINS[@]}"; do
-    if [[ -f "${BIN_DIR}/${b}" ]]; then rm -f "${BIN_DIR}/${b}"; removed=$((removed + 1)); fi
-  done
-  echo "✓ binaries: removed ${removed} from ${BIN_DIR}"
-  _remove_legacy_binaries
+  if [[ -d "${BIN_DIR}" ]]; then
+    rm -rf "${BIN_DIR}"
+    echo "✓ binary dir ${BIN_DIR}: removed"
+  else
+    echo "✓ binary dir ${BIN_DIR}: not present (skip)"
+  fi
 
   _revoke_permissions
+  _remove_legacy_binaries
 
   echo "✓ repo folder: ${SCRIPT_DIR} left untouched (you cloned it; you manage it)"
   echo ""
@@ -268,13 +386,13 @@ fi
 # ── Install (from this checkout) ─────────────────────────────────────────────
 _require claude "https://claude.ai/code"
 
-# `claude plugin install` (step 4 below) writes into ~/.claude/settings.json
+# `claude plugin install` (step below) writes into ~/.claude/settings.json
 # and refuses to run at all if that file exists but isn't valid JSON — this
 # is Claude Code's own behavior, not something this script can route around
-# or safely repair on your behalf. Caught here, before any build/install
-# work, so the failure is one clear message instead of a confusing one
-# several steps in. This is a stronger requirement than the tool-permission
-# grant below, which degrades to a warning instead of failing (see
+# or safely repair on your behalf. Caught here, before any acquisition work,
+# so the failure is one clear message instead of a confusing one several
+# steps in. This is a stronger requirement than the tool-permission grant
+# below, which degrades to a warning instead of failing (see
 # _grant_permissions) — that only covers *this script's own* write, not
 # Claude Code's.
 _settings_file="${HOME}/.claude/settings.json"
@@ -287,42 +405,43 @@ if [[ -f "${_settings_file}" ]] && command -v node &>/dev/null; then
 fi
 
 # Sanity-check that we are inside a markitdown-gemini checkout.
-if [[ ! -d "${SCRIPT_DIR}/crates" || ! -f "${SCRIPT_DIR}/.claude-plugin/marketplace.json" ]]; then
+if [[ ! -d "${SCRIPT_DIR}/crates" || ! -f "${SCRIPT_DIR}/.claude-plugin/marketplace.json" || ! -f "${SCRIPT_DIR}/plugins/markitdown-gemini/.mcp.json" ]]; then
   echo "ERROR: this does not look like a markitdown-gemini checkout: ${SCRIPT_DIR}" >&2
   echo "       Clone the repo, cd into it, and run ./${0##*/} from there." >&2
   exit 1
 fi
 echo "✓ source: ${SCRIPT_DIR}"
 
-# 1. Build the release binary.
-if [[ "${BUILD}" == "true" ]]; then
-  _require cargo "https://rustup.rs/"
-  echo "→ building release binary (cargo build --release -p markitdown-mcp)"
-  ( cd "${SCRIPT_DIR}" && cargo build --release -p markitdown-mcp )
-  echo "✓ build complete"
-else
-  echo "✓ build skipped (--no-build); using existing target/release/ binary"
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+  echo ""
+  echo "NOTE: GEMINI_API_KEY is not set. PDF conversion will use local extraction"
+  echo "      instead of Gemini. To enable it:"
+  echo "        export GEMINI_API_KEY=<your-key>"
+  echo "      then restart Claude Code."
+  echo ""
 fi
 
-# 2. Install the binary onto PATH.
-echo "→ install dir: ${BIN_DIR} (via ${BIN_DIR_SOURCE})"
-mkdir -p "${BIN_DIR}"
-for b in "${BINS[@]}"; do
-  src="${SCRIPT_DIR}/target/release/${b}"
-  if [[ ! -x "${src}" ]]; then
-    echo "ERROR: binary not found: ${src} (run without --no-build)" >&2
-    exit 1
-  fi
-  install -m 0755 "${src}" "${BIN_DIR}/${b}"
-done
-echo "✓ installed ${#BINS[@]} binary into ${BIN_DIR}"
-_remove_legacy_binaries
-case ":${PATH}:" in
-  *":${BIN_DIR}:"*) ;;
-  *) echo "⚠ ${BIN_DIR} is not on PATH — add it: export PATH=\"${BIN_DIR}:\$PATH\"" ;;
-esac
+# 1. Acquire the binary (release download, or source build).
+_acquire
 
-# 3. Register the local marketplace (this checkout). Re-register if it points elsewhere.
+# 2. Verify the binary runs before registering anything with Claude Code.
+echo "→ verifying the binary runs"
+out="$("${BIN_DIR}/${BIN_FILE}" --version 2>&1)" || {
+  echo "ERROR: the installed binary did not run: ${BIN_DIR}/${BIN_FILE}" >&2
+  echo "  output: ${out}" >&2
+  exit 1
+}
+if [[ "${out}" != *"${BINARY}"* ]]; then
+  echo "ERROR: the installed binary did not run: ${BIN_DIR}/${BIN_FILE}" >&2
+  echo "  output: ${out}" >&2
+  exit 1
+fi
+echo "✓ binary runs: ${out}"
+
+# 3. Clean up anything left by an older installer version.
+_remove_legacy_binaries
+
+# 4. Register the local marketplace (this checkout). Re-register if it points elsewhere.
 if claude plugin marketplace list 2>/dev/null | grep -q "^  ❯ ${MARKETPLACE_NAME}"; then
   if claude plugin marketplace list 2>/dev/null | grep -A2 "^  ❯ ${MARKETPLACE_NAME}" | grep -q "Source: Directory (${SCRIPT_DIR})"; then
     echo "✓ marketplace '${MARKETPLACE_NAME}': already pointing to this checkout"
@@ -338,7 +457,7 @@ else
   echo "✓ marketplace '${MARKETPLACE_NAME}': registered"
 fi
 
-# 4. (Re)install the plugin.
+# 5. (Re)install the plugin.
 if claude plugin list 2>/dev/null | grep -q "❯ ${PLUGIN_NAME}@"; then
   echo "→ reinstalling existing '${PLUGIN_NAME}' plugin"
   claude plugin uninstall "${PLUGIN_NAME}" --yes
@@ -346,13 +465,14 @@ fi
 claude plugin install "${PLUGIN_NAME}@${MARKETPLACE_NAME}"
 echo "✓ '${PLUGIN_NAME}@${MARKETPLACE_NAME}': installed"
 
-# 5. Point the installed plugin's MCP server at the local binary.
-_point_plugin_at_binary "${BIN_DIR}/${BINS[0]}"
-
 # 6. Grant tool permissions so all plugin tools run without per-call approval.
 _grant_permissions
 
 echo ""
 echo "Installation complete. Restart Claude Code to activate the plugin."
-echo "  • MCP tool: convert_to_markdown (http/https/file/data URIs → Markdown)"
-echo "  • Optional: export GEMINI_API_KEY for Gemini-based PDF conversion"
+echo "  binary      : ${BIN_DIR}/${BIN_FILE} (${ACQUIRED_FROM})"
+echo "  marketplace : ${SCRIPT_DIR}"
+echo "  permission  : ${TOOL_PERMISSIONS[0]}"
+echo ""
+echo "Verify with:    claude mcp list (expect: markitdown-gemini … ✔ Connected)"
+echo "Uninstall with: ${0##*/} -d"

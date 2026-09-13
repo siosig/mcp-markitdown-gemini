@@ -1,16 +1,10 @@
 {
   "name": "markitdown-gemini",
-  "description": "Convert documents (PDF, Office, HTML, CSV, etc.) at http/https/file/data URIs to Markdown via the convert_to_markdown MCP tool. Optional high-fidelity PDF conversion via Gemini when GEMINI_API_KEY is set. Install with install_claude_plugin.sh.",
+  "description": "Convert documents (PDF, Office, HTML, CSV, etc.) at http/https/file/data URIs to Markdown via the convert_to_markdown MCP tool. Optional high-fidelity PDF conversion via Gemini when GEMINI_API_KEY is set. Install with install_claude_plugin.sh (Linux/macOS) or install_claude_plugin.ps1 (Windows).",
   "version": "0.1.0",
   "author": {
     "name": "Daisuke ITO"
   },
   "homepage": "https://github.com/siosig/mcp-markitdown-gemini",
-  "keywords": ["markitdown", "mcp", "markdown", "pdf", "gemini", "claude-code"],
-  "mcpServers": {
-    "markitdown-gemini": {
-      "command": "markitdown-mcp",
-      "args": []
-    }
-  }
+  "keywords": ["markitdown", "mcp", "markdown", "pdf", "gemini", "claude-code"]
 }

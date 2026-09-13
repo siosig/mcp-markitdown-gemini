@@ -1,0 +1,106 @@
+name: release
+
+# Cross-compile the Rust binary for every supported platform and publish the
+# archives as GitHub Release assets. Triggered by pushing an annotated `vX.Y.Z`
+# tag. Asset names must match the pattern install_claude_plugin.sh /
+# install_claude_plugin.ps1 expect (see specs/007-windows-installer/contracts/
+# release-assets.md):
+#   markitdown-mcp-{linux|darwin|windows}-{x86_64|aarch64}.{tar.gz|zip}
+#
+# Action versions (actions/checkout@v7, softprops/action-gh-release@v3) are
+# pinned to the Node 24 runtime generation: the older v4 / v2 releases still
+# work today but already print a "Node.js 20 is deprecated" warning on every
+# run and would break under a future forced migration (research.md R5).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Release runners are single-shot and clean, so incremental compilation is
+  # pure overhead here.
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-22.04
+            asset: markitdown-mcp-linux-x86_64.tar.gz
+            cross: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            asset: markitdown-mcp-linux-aarch64.tar.gz
+            cross: true
+          - target: aarch64-apple-darwin
+            os: macos-14
+            asset: markitdown-mcp-darwin-aarch64.tar.gz
+            cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
+            asset: markitdown-mcp-windows-x86_64.zip
+            cross: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # `cross` runs the build inside a container and only mounts the host's
+      # CARGO_HOME, so a git dependency (gemini-genai, from
+      # https://github.com/siosig/genai-rs) must already be fetched on the
+      # host before the container step runs; otherwise the fetch would depend
+      # on the container's own network/git configuration (research.md R6).
+      - name: Fetch dependencies (host)
+        run: cargo fetch --locked
+
+      # Fetch a prebuilt `cross` binary instead of compiling it from source on
+      # every release run (`cargo install cross` rebuilds it each time).
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release --locked --target ${{ matrix.target }} -p markitdown-mcp
+
+      - name: Build (native)
+        if: ${{ !matrix.cross }}
+        run: cargo build --release --locked --target ${{ matrix.target }} -p markitdown-mcp
+
+      - name: Package (unix)
+        if: runner.os != 'Windows'
+        run: tar czf "${{ matrix.asset }}" -C "target/${{ matrix.target }}/release" markitdown-mcp
+
+      - name: Package (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "target/${{ matrix.target }}/release/markitdown-mcp.exe" -DestinationPath "${{ matrix.asset }}"
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ${{ matrix.asset }}

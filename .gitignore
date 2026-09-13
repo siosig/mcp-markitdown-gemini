@@ -37,4 +37,8 @@ Thumbs.db
 .secretlintrc.local.json
 /refs/
 /report/
-/.claude-plugin/
+
+# Plugin binary: acquired per-machine by install_claude_plugin.{sh,ps1}. Ignored
+# here, but plugin installation copies the directory wholesale, so the binary
+# still reaches the installed plugin.
+plugins/markitdown-gemini/bin/

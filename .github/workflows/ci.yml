@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI always builds from a cold checkout, so incremental compilation only adds
+  # bookkeeping overhead and bloats the cache -- turn it off. (Rust cache below
+  # restores dependency artifacts, which is where the real speedup comes from.)
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        run: cargo test --all-features --locked
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+  # The release workflow cross-compiles four targets, but it only runs on a tag --
+  # so until now a dependency that breaks a cross build stayed invisible until
+  # release day. This mirrors that matrix on every push and PR. It builds rather
+  # than tests, because the point is to prove each target still links; `cargo test`
+  # cannot run a foreign-architecture binary anyway.
+  #
+  # Two C dependencies make this project's cross builds riskier than the reference
+  # implementation's: `aws-lc-sys` (rustls <- reqwest <- gemini-genai / markitdown)
+  # has cross-target precedent in the reference project's own release history, but
+  # `zstd-sys` (zstd <- zip 8.6 <- calamine / markitdown) does not exist in the
+  # reference implementation's dependency tree at all -- it is unique to this
+  # project. Whether it links cleanly on all four targets is unverified (research
+  # R6); this PR gate is what proves it before a tag is ever pushed.
+  cross-build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-22.04
+            cross: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            cross: true
+          - target: aarch64-apple-darwin
+            os: macos-14
+            cross: false
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
+            cross: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ci-${{ matrix.target }}
+
+      # Fetch dependencies on the host before invoking cross. gemini-genai is a
+      # git dependency (siosig/genai-rs); cross mounts the host CARGO_HOME into
+      # the container, so fetching here keeps the container's network and git
+      # config out of the loop for that fetch (research R6).
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
+      # Fetch a prebuilt `cross` rather than compiling it from source each run.
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --locked --target ${{ matrix.target }} -p markitdown-mcp
+
+      - name: Build (native)
+        if: ${{ !matrix.cross }}
+        run: cargo build --locked --target ${{ matrix.target }} -p markitdown-mcp

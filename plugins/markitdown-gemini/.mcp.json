@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "markitdown-gemini": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/markitdown-mcp.exe"
+    }
+  }
+}
